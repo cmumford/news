@@ -39,7 +39,11 @@ class Tag(object):
 
 class NPR(object):
   baseUrl = 'http://api.npr.org/query?'
-  cancer = True
+  cancer = False
+  female_tags = set()
+  male_tags = set()
+  female_stories = set()
+  male_stories = set()
 
   def __init__(self, api_key):
     self.api_key_ = api_key
@@ -74,7 +78,7 @@ class NPR(object):
     ignore_ids = [126927651, 184560888]
     words = ['womens?', 'mothers?', 'girls?', 'daughters?', 'grandmothers?',
              'grandma', 'females?', 'feminism', '#15Girls', '15girls',
-             'ovarian transplant']
+             "women's rights?", 'ovarian transplant']
     # Questionable tags. Assuming mostly about women
     words.extend(['sexism'])
     for word in words:
@@ -210,6 +214,10 @@ class NPR(object):
           if tag_id in ids_to_tag:
             tag = ids_to_tag[tag_id]
             counts[tag] = counts[tag] + 1
+            if tag in NPR.female_tags:
+              NPR.female_stories.add(story.get('id'))
+            if tag in NPR.male_tags:
+              NPR.male_stories.add(story.get('id'))
     return counts
 
 if __name__ == '__main__':
@@ -217,20 +225,23 @@ if __name__ == '__main__':
   npr = NPR(api_key)
   tags = NPR.loadTags()
   print 'There are', len(tags), 'total tags'
-  female_tags = NPR.femaleTags(tags)
-  print 'There are', len(female_tags), 'female tags'
-  male_tags = NPR.maleTags(tags)
-  print 'There are', len(male_tags), 'male tags'
+  NPR.female_tags = NPR.femaleTags(tags)
+  print 'There are', len(NPR.female_tags), 'female tags'
+  NPR.male_tags = NPR.maleTags(tags)
+  print 'There are', len(NPR.male_tags), 'male tags'
 
   counts = npr.countStories(tags)
 
   female_count = 0
   male_count = 0
   for tag in counts:
-    if tag in female_tags:
+    if tag in NPR.female_tags:
       female_count += counts[tag]
-    if tag in male_tags:
+    if tag in NPR.male_tags:
       male_count += counts[tag]
 
   print 'There are', female_count, 'stories with female tags'
   print 'There are', male_count, 'stories with male tags'
+
+  print 'There are', len(NPR.female_stories), 'female stories'
+  print 'There are', len(NPR.male_stories), 'male stories'
