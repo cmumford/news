@@ -2,14 +2,17 @@
 
 import copy
 import datetime
+import glob
 import json
 import re
-import urllib
 import sys
+import urllib
 import xml.etree.ElementTree
 
 # Uses the NPR API: http://api.npr.org/
 # Query generator: http://www.npr.org/api/queryGenerator.php
+
+# Last startNum retrieved was 154534
 
 class Topics(object):
   All = 3002
@@ -135,6 +138,33 @@ class NPR(object):
 
     return story_count
 
+  def countStories(self, tags):
+    counts = {}
+    ids_to_tag = {}
+    for tag in tags:
+      counts[tag] = 0
+      ids_to_tag[tag.id_] = tag
+    start = datetime.datetime.now()
+    files = glob.glob('stories/*.xml')
+    idx = 0
+    for fname in files:
+      idx += 1
+      elapsed = datetime.datetime.now() - start
+      files_per_sec = idx / elapsed.total_seconds()
+      percent = idx * 100.0 / len(files)
+      remaining_secs = (len(files) - idx) / files_per_sec
+      print '%s: %.1f%%, fps:%.1f, remaining:%ds' % \
+          (fname, percent, files_per_sec, remaining_secs)
+
+      root = xml.etree.ElementTree.parse(fname).getroot()
+      for story in root.findall('list/story'):
+        for parent in story.findall("parent[@type='tag']"):
+          tag_id = int(parent.get('id'))
+          if tag_id in ids_to_tag:
+            tag = ids_to_tag[tag_id]
+            counts[tag] = counts[tag] + 1
+    return counts
+
 if __name__ == '__main__':
   api_key = open('key.txt').read().strip()
   npr = NPR(api_key)
@@ -143,10 +173,19 @@ if __name__ == '__main__':
   if False:
     for tag in tags:
       print tag
-  filtered = NPR.findWomenTags(tags)
-  print 'There are', len(filtered), 'filtered tags'
-  str_tags = []
-  for tag in filtered:
-    print tag
-    str_tags.append(str(tag.id_))
-  print 'There are', npr.countTopics(str_tags), 'stories'
+  female_tags = NPR.findWomenTags(tags)
+  print 'There are', len(female_tags), 'female tags'
+  male_tags = NPR.findMenTags(tags)
+  print 'There are', len(male_tags), 'male tags'
+  counts = npr.countStories(tags)
+
+  female_count = 0
+  male_count = 0
+  for tag in counts:
+    if tag in female_tags:
+      female_count += counts[tag]
+    if tag in male_tags:
+      male_count += counts[tag]
+
+  print 'There are', female_count, 'female stories'
+  print 'There are', male_count, 'male stories'
