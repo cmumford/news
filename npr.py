@@ -50,10 +50,11 @@ class Story(object):
 
 class NPR(object):
   baseUrl = 'http://api.npr.org/query?'
-  cancer = False
   all_tags = []
   female_tags = set()
   male_tags = set()
+  female_cancer_tags = set()
+  male_cancer_tags = set()
   female_stories = set()
   male_stories = set()
 
@@ -103,13 +104,6 @@ class NPR(object):
     return tags
 
   @staticmethod
-  def femaleTags(all_tags):
-    if NPR.cancer:
-      return NPR.findWomenCancerTags(all_tags)
-    else:
-      return NPR.findWomenTags(all_tags)
-
-  @staticmethod
   def isSportsTag(tag):
     return tag.id_ in [
       149849695,
@@ -135,13 +129,6 @@ class NPR(object):
   @staticmethod
   def findMaleCancerTags(all_tags):
     return NPR.findMatchingTags(r'.*prostate cancer.*', all_tags)
-
-  @staticmethod
-  def maleTags(all_tags):
-    if NPR.cancer:
-      return NPR.findMaleCancerTags(all_tags)
-    else:
-      return NPR.findMenTags(all_tags)
 
   def getUrl(self, params = {}):
     common_params = {'apiKey': self.api_key_}
@@ -241,38 +228,6 @@ class NPR(object):
           break
     return stories
 
-  def countStories(self, tags):
-    counts = {}
-    ids_to_tag = {}
-    for tag in tags:
-      counts[tag] = 0
-      ids_to_tag[tag.id_] = tag
-    start = datetime.datetime.now()
-    files = glob.glob('stories/*.xml')
-    files = files[:500]
-    idx = 0
-    for fname in files:
-      idx += 1
-      elapsed = datetime.datetime.now() - start
-      files_per_sec = idx / elapsed.total_seconds()
-      percent = idx * 100.0 / len(files)
-      remaining_secs = (len(files) - idx) / files_per_sec
-      print '%s: %.1f%%, fps:%.1f, remaining:%ds' % \
-          (fname, percent, files_per_sec, remaining_secs)
-
-      root = xml.etree.ElementTree.parse(fname).getroot()
-      for story in root.findall('list/story'):
-        for parent in story.findall("parent[@type='tag']"):
-          tag_id = int(parent.get('id'))
-          if tag_id in ids_to_tag:
-            tag = ids_to_tag[tag_id]
-            counts[tag] = counts[tag] + 1
-            if tag in NPR.female_tags:
-              NPR.female_stories.add(story.get('id'))
-            if tag in NPR.male_tags:
-              NPR.male_stories.add(story.get('id'))
-    return counts
-
   def writeStoriesToXml(self, stories):
     root = ET.Element("nprml")
     xml_list = ET.SubElement(root, "list")
@@ -290,11 +245,10 @@ class NPR(object):
   @staticmethod
   def loadTagsOfInterest():
     NPR.all_tags = NPR.loadTags()
-    print 'There are', len(NPR.all_tags), 'total tags'
-    NPR.female_tags = NPR.femaleTags(NPR.all_tags)
-    print 'There are', len(NPR.female_tags), 'female tags'
-    NPR.male_tags = NPR.maleTags(NPR.all_tags)
-    print 'There are', len(NPR.male_tags), 'male tags'
+    NPR.female_tags = NPR.findWomenTags(NPR.all_tags)
+    NPR.female_cancer_tags = NPR.findWomenCancerTags(NPR.all_tags)
+    NPR.male_tags = NPR.findMenTags(NPR.all_tags)
+    NPR.male_cancer_tags = NPR.findMaleCancerTags(NPR.all_tags)
 
   # Extract a subset of the stories, and write them to a single file for
   # analysis.
@@ -339,12 +293,17 @@ class NPR(object):
     stories = self.loadStoriesFromFiles(NPR.all_tags, ['matching.xml'])
     print 'There are', len(stories), 'matching'
 
-    female_counts = NPR.calcTagCounts(stories, NPR.female_tags)
-    NPR.printDictAsCSV(female_counts, 'analysis_female.xml')
+    counts = NPR.calcTagCounts(stories, NPR.female_tags)
+    NPR.printDictAsCSV(counts, 'analysis_female.xml')
 
-    male_counts = NPR.calcTagCounts(stories, NPR.male_tags)
-    NPR.printDictAsCSV(male_counts, 'analysis_male.xml')
+    counts = NPR.calcTagCounts(stories, NPR.female_cancer_tags)
+    NPR.printDictAsCSV(counts, 'analysis_female_cancer.xml')
 
+    counts = NPR.calcTagCounts(stories, NPR.male_tags)
+    NPR.printDictAsCSV(counts, 'analysis_male.xml')
+
+    counts = NPR.calcTagCounts(stories, NPR.male_cancer_tags)
+    NPR.printDictAsCSV(counts, 'analysis_male_cancer.xml')
 
 if __name__ == '__main__':
   api_key = open('key.txt').read().strip()
