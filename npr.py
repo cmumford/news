@@ -39,6 +39,7 @@ class Tag(object):
 
 class NPR(object):
   baseUrl = 'http://api.npr.org/query?'
+  cancer = True
 
   def __init__(self, api_key):
     self.api_key_ = api_key
@@ -55,11 +56,27 @@ class NPR(object):
     return tags
 
   @staticmethod
+  def findMatchingTags(reg_str, all_tags):
+    tags = set()
+    reg = re.compile(reg_str, re.IGNORECASE)
+    for tag in all_tags:
+      if reg.match(tag.title_):
+        tags.add(tag)
+    return tags
+
+  @staticmethod
+  def findWomenCancerTags(all_tags):
+    return NPR.findMatchingTags(r'.*breast cancer.*', all_tags)
+
+  @staticmethod
   def findWomenTags(all_tags):
     tags = set()
     ignore_ids = [126927651, 184560888]
     words = ['womens?', 'mothers?', 'girls?', 'daughters?', 'grandmothers?',
-             'grandma', 'females?']
+             'grandma', 'females?', 'feminism', '#15Girls', '15girls',
+             'ovarian transplant']
+    # Questionable tags. Assuming mostly about women
+    words.extend(['sexism'])
     for word in words:
       reg = re.compile(r'.*\b%s\b.*' % word, re.IGNORECASE)
       for tag in all_tags:
@@ -68,6 +85,13 @@ class NPR(object):
             and reg.match(tag.title_):
           tags.add(tag)
     return tags
+
+  @staticmethod
+  def femaleTags(all_tags):
+    if NPR.cancer:
+      return NPR.findWomenCancerTags(all_tags)
+    else:
+      return NPR.findWomenTags(all_tags)
 
   @staticmethod
   def isSportsTag(tag):
@@ -91,6 +115,17 @@ class NPR(object):
           and reg.match(tag.title_):
           tags.add(tag)
     return tags
+
+  @staticmethod
+  def findMaleCancerTags(all_tags):
+    return NPR.findMatchingTags(r'.*prostate cancer.*', all_tags)
+
+  @staticmethod
+  def maleTags(all_tags):
+    if NPR.cancer:
+      return NPR.findMaleCancerTags(all_tags)
+    else:
+      return NPR.findMenTags(all_tags)
 
   def getUrl(self, params = {}):
     common_params = {'apiKey': self.api_key_}
@@ -182,9 +217,9 @@ if __name__ == '__main__':
   npr = NPR(api_key)
   tags = NPR.loadTags()
   print 'There are', len(tags), 'total tags'
-  female_tags = NPR.findWomenTags(tags)
+  female_tags = NPR.femaleTags(tags)
   print 'There are', len(female_tags), 'female tags'
-  male_tags = NPR.findMenTags(tags)
+  male_tags = NPR.maleTags(tags)
   print 'There are', len(male_tags), 'male tags'
 
   counts = npr.countStories(tags)
@@ -197,5 +232,5 @@ if __name__ == '__main__':
     if tag in male_tags:
       male_count += counts[tag]
 
-  print 'There are', female_count, 'female stories'
-  print 'There are', male_count, 'male stories'
+  print 'There are', female_count, 'stories with female tags'
+  print 'There are', male_count, 'stories with male tags'
