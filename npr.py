@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import copy
+import datetime
 import json
 import re
 import urllib
@@ -7,6 +9,8 @@ import sys
 import xml.etree.ElementTree
 
 # Uses the NPR API: http://api.npr.org/
+# Query generator: http://www.npr.org/api/queryGenerator.php
+
 class Topics(object):
   All = 3002
   Columns = 3003
@@ -33,8 +37,8 @@ class Tag(object):
 class NPR(object):
   baseUrl = 'http://api.npr.org/query?'
 
-  def __init__(self, key):
-    self.key_ = key
+  def __init__(self, api_key):
+    self.api_key_ = api_key
 
   @staticmethod
   def loadTags():
@@ -52,7 +56,7 @@ class NPR(object):
     tags = set()
     ignore_ids = []
     words = ['womens?', 'mothers?', 'girls?', 'daughters?', 'grandmothers?',
-             'grandma']
+             'grandma', 'females?']
     for word in words:
       reg = re.compile(r'.*\b%s\b.*' % word, re.IGNORECASE)
       for tag in all_tags:
@@ -65,7 +69,7 @@ class NPR(object):
     tags = set()
     ignore_ids = [126826632, 129251919, 152027155]
     words = ['men', "men's", 'fathers?', 'boys?', 'sons?', 'grandfathers?',
-             'grandpa']
+             'grandpa', 'male?']
     for word in words:
       reg = re.compile(r'.*\b%s\b.*' % word, re.IGNORECASE)
       for tag in all_tags:
@@ -74,26 +78,75 @@ class NPR(object):
     return tags
 
   def getUrl(self, params = {}):
-    common_params = {'apiKey': self.key_, 'format': 'json'}
+    common_params = {'apiKey': self.api_key_}
     params.update(common_params)
     return NPR.baseUrl + urllib.urlencode(params)
 
-  def getTopics(self):
-    url = self.getUrl()
-    f = urllib.urlopen(url)
-    json_obj = json.loads(f.read())
-    print json_obj['list']['title']['$text']
-    for story in json_obj['list']['story']:
-      print story['title']['$text']
-      print story['teaser']['$text']
-      print story['storyDate']['$text']
-      for paragraph in story['text']['paragraph']:
-        if '$text' in paragraph:
-          print paragraph['$text']
-      print "-------------------------------"
+  @staticmethod
+  def getYMD(dt):
+    return dt.strftime('%Y-%m-%d')
+
+  def downloadData(self):
+    params = {'startNum':30640, 'numResults':20}
+    story_count = 1    # Any non-zero number to start
+    total_stories = 0
+    while story_count:
+      url = self.getUrl(params)
+      print url
+      f = urllib.urlopen(url)
+      xml_response = f.read()
+      with open('stories/startNum_%d.xml' % params['startNum'], 'w') as f:
+        f.write(xml_response)
+      root = xml.etree.ElementTree.fromstring(xml_response)
+      story_count = len(root.findall('list/story'))
+      total_stories += story_count
+      print 'there are', story_count, 'stories. So far:', total_stories
+      params['startNum'] = params['startNum'] + story_count
+
+  # Looks like searching by tags isn't an official API - I just guessed at it.
+  # Apparently that query doesn't support startNum for pagination, so this
+  # implementation uses dates to query the ranges.
+  # Note: Note, looks like dates are also ignored - this not working either.
+  def countTopics(self, tags):
+    params = {'format':'json', 'fields': 'none'}
+    if tags:
+      params.update({'searchType':'tags', 'searchTerm':'|'.join(tags)})
+    done = False
+    story_count = 0
+
+    start_date = datetime.datetime.strptime('2015-11-15', '%Y-%m-%d')
+    end_date = datetime.datetime.now()
+    while start_date < end_date:
+      end = start_date + datetime.timedelta(days=6)
+      p = copy.copy(params)
+      p.update({'startDate':start_date.strftime('%Y-%m-%d'),
+                'endDate':end.strftime('%Y-%m-%d')})
+      url = self.getUrl(p)
+      f = urllib.urlopen(url)
+      json_obj = json.loads(f.read())
+      story_list = json_obj['list']
+      if 'story' in story_list:
+        count = len(story_list['story'])
+      else:
+        count = 0
+      print start_date, 'count:', count
+      story_count += count
+      start_date += datetime.timedelta(days=7)
+
+    return story_count
 
 if __name__ == '__main__':
-  key = open('key.txt').read().strip()
-  npr = NPR(key)
+  api_key = open('key.txt').read().strip()
+  npr = NPR(api_key)
   tags = NPR.loadTags()
-  npr.getTopics()
+  print 'There are', len(tags), 'total tags'
+  if False:
+    for tag in tags:
+      print tag
+  filtered = NPR.findWomenTags(tags)
+  print 'There are', len(filtered), 'filtered tags'
+  str_tags = []
+  for tag in filtered:
+    print tag
+    str_tags.append(str(tag.id_))
+  print 'There are', npr.countTopics(str_tags), 'stories'
