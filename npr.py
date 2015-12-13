@@ -57,26 +57,38 @@ class NPR(object):
   @staticmethod
   def findWomenTags(all_tags):
     tags = set()
-    ignore_ids = []
+    ignore_ids = [126927651, 184560888]
     words = ['womens?', 'mothers?', 'girls?', 'daughters?', 'grandmothers?',
              'grandma', 'females?']
     for word in words:
       reg = re.compile(r'.*\b%s\b.*' % word, re.IGNORECASE)
       for tag in all_tags:
-        if tag.id_ not in ignore_ids and reg.match(tag.title_):
+        if tag.id_ not in ignore_ids \
+            and not NPR.isSportsTag(tag) \
+            and reg.match(tag.title_):
           tags.add(tag)
     return tags
 
   @staticmethod
+  def isSportsTag(tag):
+    return tag.id_ in [
+      149849695,
+      149849693,
+      135170830
+    ]
+
+  @staticmethod
   def findMenTags(all_tags):
     tags = set()
-    ignore_ids = [126826632, 129251919, 152027155]
+    ignore_ids = [126826632, 129251919, 152027155, 131877737]
     words = ['men', "men's", 'fathers?', 'boys?', 'sons?', 'grandfathers?',
              'grandpa', 'male?']
     for word in words:
       reg = re.compile(r'.*\b%s\b.*' % word, re.IGNORECASE)
       for tag in all_tags:
-        if tag.id_ not in ignore_ids and reg.match(tag.title_):
+        if tag.id_ not in ignore_ids \
+          and not NPR.isSportsTag(tag) \
+          and reg.match(tag.title_):
           tags.add(tag)
     return tags
 
@@ -170,13 +182,11 @@ if __name__ == '__main__':
   npr = NPR(api_key)
   tags = NPR.loadTags()
   print 'There are', len(tags), 'total tags'
-  if False:
-    for tag in tags:
-      print tag
   female_tags = NPR.findWomenTags(tags)
   print 'There are', len(female_tags), 'female tags'
   male_tags = NPR.findMenTags(tags)
   print 'There are', len(male_tags), 'male tags'
+
   counts = npr.countStories(tags)
 
   female_count = 0
