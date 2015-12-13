@@ -51,7 +51,9 @@ class Story(object):
 class NPR(object):
   baseUrl = 'http://api.npr.org/query?'
   all_tags = []
+  girl_tags = set()
   female_tags = set()
+  boy_tags = set()
   male_tags = set()
   female_cancer_tags = set()
   male_cancer_tags = set()
@@ -104,6 +106,22 @@ class NPR(object):
     return tags
 
   @staticmethod
+  def findGirlTags(all_tags):
+    tags = set()
+    ignore_ids = [126927651, 184560888]
+    words = ['girls?', 'daughters?', '#15Girls', '15girls']
+    # Questionable tags. Assuming mostly about women
+    words.extend(['sexism'])
+    for word in words:
+      reg = re.compile(r'.*\b%s\b.*' % word, re.IGNORECASE)
+      for tag in all_tags:
+        if tag.id_ not in ignore_ids \
+            and not NPR.isSportsTag(tag) \
+            and reg.match(tag.title_):
+          tags.add(tag)
+    return tags
+
+  @staticmethod
   def isSportsTag(tag):
     return tag.id_ in [
       149849695,
@@ -117,6 +135,20 @@ class NPR(object):
     ignore_ids = [126826632, 129251919, 152027155, 131877737]
     words = ['men', "men's", 'fathers?', 'boys?', 'sons?', 'grandfathers?',
              'grandpa', 'male?']
+    for word in words:
+      reg = re.compile(r'.*\b%s\b.*' % word, re.IGNORECASE)
+      for tag in all_tags:
+        if tag.id_ not in ignore_ids \
+          and not NPR.isSportsTag(tag) \
+          and reg.match(tag.title_):
+          tags.add(tag)
+    return tags
+
+  @staticmethod
+  def findBoyTags(all_tags):
+    tags = set()
+    ignore_ids = [126826632, 129251919, 152027155, 131877737]
+    words = ['boys?', 'sons?']
     for word in words:
       reg = re.compile(r'.*\b%s\b.*' % word, re.IGNORECASE)
       for tag in all_tags:
@@ -249,6 +281,8 @@ class NPR(object):
     NPR.female_cancer_tags = NPR.findWomenCancerTags(NPR.all_tags)
     NPR.male_tags = NPR.findMenTags(NPR.all_tags)
     NPR.male_cancer_tags = NPR.findMaleCancerTags(NPR.all_tags)
+    NPR.boy_tags = NPR.findBoyTags(NPR.all_tags)
+    NPR.girl_tags = NPR.findGirlTags(NPR.all_tags)
 
   # Extract a subset of the stories, and write them to a single file for
   # analysis.
@@ -304,6 +338,12 @@ class NPR(object):
 
     counts = NPR.calcTagCounts(stories, NPR.male_cancer_tags)
     NPR.printDictAsCSV(counts, 'analysis_male_cancer.xml')
+
+    counts = NPR.calcTagCounts(stories, NPR.boy_tags)
+    NPR.printDictAsCSV(counts, 'analysis_boys.xml')
+
+    counts = NPR.calcTagCounts(stories, NPR.girl_tags)
+    NPR.printDictAsCSV(counts, 'analysis_girls.xml')
 
 if __name__ == '__main__':
   api_key = open('key.txt').read().strip()
