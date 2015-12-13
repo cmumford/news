@@ -328,22 +328,22 @@ class NPR(object):
     print 'There are', len(stories), 'matching'
 
     counts = NPR.calcTagCounts(stories, NPR.female_tags)
-    NPR.printDictAsCSV(counts, 'analysis_female.xml')
+    NPR.printDictAsCSV(counts, 'analysis_female.csv')
 
     counts = NPR.calcTagCounts(stories, NPR.female_cancer_tags)
-    NPR.printDictAsCSV(counts, 'analysis_female_cancer.xml')
+    NPR.printDictAsCSV(counts, 'analysis_female_cancer.csv')
 
     counts = NPR.calcTagCounts(stories, NPR.male_tags)
-    NPR.printDictAsCSV(counts, 'analysis_male.xml')
+    NPR.printDictAsCSV(counts, 'analysis_male.csv')
 
     counts = NPR.calcTagCounts(stories, NPR.male_cancer_tags)
-    NPR.printDictAsCSV(counts, 'analysis_male_cancer.xml')
+    NPR.printDictAsCSV(counts, 'analysis_male_cancer.csv')
 
     counts = NPR.calcTagCounts(stories, NPR.boy_tags)
-    NPR.printDictAsCSV(counts, 'analysis_boys.xml')
+    NPR.printDictAsCSV(counts, 'analysis_boys.csv')
 
     counts = NPR.calcTagCounts(stories, NPR.girl_tags)
-    NPR.printDictAsCSV(counts, 'analysis_girls.xml')
+    NPR.printDictAsCSV(counts, 'analysis_girls.csv')
 
 if __name__ == '__main__':
   api_key = open('key.txt').read().strip()
