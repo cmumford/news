@@ -48,6 +48,33 @@ class Story(object):
     self.date_ = None
     self.tags_ = []
 
+class GenderStats(object):
+  def __init__(self, title):
+    self.title = title
+    self.total = 0
+    self.youth = 0
+    self.cancer = 0
+
+  @staticmethod
+  def totalCounts(counts):
+    total = 0
+    for tag in counts:
+      total += counts[tag]
+    return total
+
+  def addTotal(self, counts):
+    self.total = GenderStats.totalCounts(counts)
+
+  def addCancer(self, counts):
+    self.cancer = GenderStats.totalCounts(counts)
+
+  def addYouth(self, counts):
+    self.youth = GenderStats.totalCounts(counts)
+
+  def __str__(self):
+    return "%s total:%d cancer:%d youth:%d" % (self.title, self.total, \
+                                               self.cancer, self.youth)
+
 class NPR(object):
   baseUrl = 'http://api.npr.org/query?'
   all_tags = []
@@ -327,27 +354,41 @@ class NPR(object):
     stories = self.loadStoriesFromFiles(NPR.all_tags, ['matching.xml'])
     print 'There are', len(stories), 'matching'
 
+    male = GenderStats('Male')
+    female = GenderStats('Female')
+
     counts = NPR.calcTagCounts(stories, NPR.female_tags)
     NPR.printDictAsCSV(counts, 'analysis_female.csv')
+    female.addTotal(counts)
 
     counts = NPR.calcTagCounts(stories, NPR.female_cancer_tags)
     NPR.printDictAsCSV(counts, 'analysis_female_cancer.csv')
-
-    counts = NPR.calcTagCounts(stories, NPR.male_tags)
-    NPR.printDictAsCSV(counts, 'analysis_male.csv')
-
-    counts = NPR.calcTagCounts(stories, NPR.male_cancer_tags)
-    NPR.printDictAsCSV(counts, 'analysis_male_cancer.csv')
-
-    counts = NPR.calcTagCounts(stories, NPR.boy_tags)
-    NPR.printDictAsCSV(counts, 'analysis_boys.csv')
+    female.addCancer(counts)
 
     counts = NPR.calcTagCounts(stories, NPR.girl_tags)
     NPR.printDictAsCSV(counts, 'analysis_girls.csv')
+    female.addYouth(counts)
+
+    counts = NPR.calcTagCounts(stories, NPR.male_tags)
+    NPR.printDictAsCSV(counts, 'analysis_male.csv')
+    male.addTotal(counts)
+
+    counts = NPR.calcTagCounts(stories, NPR.male_cancer_tags)
+    NPR.printDictAsCSV(counts, 'analysis_male_cancer.csv')
+    male.addCancer(counts)
+
+    counts = NPR.calcTagCounts(stories, NPR.boy_tags)
+    NPR.printDictAsCSV(counts, 'analysis_boys.csv')
+    male.addYouth(counts)
+
+    print female
+    print male
 
 if __name__ == '__main__':
   api_key = open('key.txt').read().strip()
   npr = NPR(api_key)
 
+  # Expensive and *slow*
   #npr.extractMatchingStories()
+
   npr.analyzeMatchingStories()
