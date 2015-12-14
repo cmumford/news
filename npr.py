@@ -311,19 +311,23 @@ class NPR(object):
     NPR.boy_tags = NPR.findBoyTags(NPR.all_tags)
     NPR.girl_tags = NPR.findGirlTags(NPR.all_tags)
 
+    NPR.female_all_tags = set()
+    NPR.female_all_tags |= NPR.female_tags
+    NPR.female_all_tags |= NPR.female_cancer_tags
+    NPR.female_all_tags |= NPR.girl_tags
+
+    NPR.male_all_tags = set()
+    NPR.male_all_tags |= NPR.male_tags
+    NPR.male_all_tags |= NPR.male_cancer_tags
+    NPR.male_all_tags |= NPR.boy_tags
+
   # Extract a subset of the stories, and write them to a single file for
   # analysis.
   def extractMatchingStories(self):
     NPR.loadTagsOfInterest()
 
-    combined_tags = set()
-    combined_tags |= NPR.female_tags
-    combined_tags |= NPR.female_cancer_tags
-    combined_tags |= NPR.girl_tags
-
-    combined_tags |= NPR.male_tags
-    combined_tags |= NPR.male_cancer_tags
-    combined_tags |= NPR.boy_tags
+    combined_tags = copy.copy(NPR.female_all_tags)
+    combined_tags |= NPR.male_all_tags
 
     matching_stories = npr.loadMatchingStories(combined_tags, NPR.all_tags)
     print 'There are', len(matching_stories), 'matching stories'
@@ -363,7 +367,7 @@ class NPR(object):
     male = GenderStats('Male')
     female = GenderStats('Female')
 
-    counts = NPR.calcTagCounts(stories, NPR.female_tags)
+    counts = NPR.calcTagCounts(stories, NPR.female_all_tags)
     NPR.printDictAsCSV(counts, 'analysis_female.csv')
     female.addTotal(counts)
 
@@ -375,7 +379,7 @@ class NPR(object):
     NPR.printDictAsCSV(counts, 'analysis_girls.csv')
     female.addYouth(counts)
 
-    counts = NPR.calcTagCounts(stories, NPR.male_tags)
+    counts = NPR.calcTagCounts(stories, NPR.male_all_tags)
     NPR.printDictAsCSV(counts, 'analysis_male.csv')
     male.addTotal(counts)
 
