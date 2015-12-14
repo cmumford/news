@@ -187,7 +187,7 @@ class NPR(object):
 
   @staticmethod
   def findMaleCancerTags(all_tags):
-    return NPR.findMatchingTags(r'.*prostate cancer.*', all_tags)
+    return NPR.findMatchingTags(r'.*prostate.*', all_tags)
 
   def getUrl(self, params = {}):
     common_params = {'apiKey': self.api_key_}
@@ -316,8 +316,14 @@ class NPR(object):
   def extractMatchingStories(self):
     NPR.loadTagsOfInterest()
 
-    combined_tags = [t for t in NPR.female_tags]
-    combined_tags.extend([t for t in NPR.male_tags])
+    combined_tags = set()
+    combined_tags |= NPR.female_tags
+    combined_tags |= NPR.female_cancer_tags
+    combined_tags |= NPR.girl_tags
+
+    combined_tags |= NPR.male_tags
+    combined_tags |= NPR.male_cancer_tags
+    combined_tags |= NPR.boy_tags
 
     matching_stories = npr.loadMatchingStories(combined_tags, NPR.all_tags)
     print 'There are', len(matching_stories), 'matching stories'
@@ -352,7 +358,7 @@ class NPR(object):
   def analyzeMatchingStories(self):
     NPR.loadTagsOfInterest()
     stories = self.loadStoriesFromFiles(NPR.all_tags, ['matching.xml'])
-    print 'There are', len(stories), 'matching'
+    print 'Analyzing', len(stories), 'stories'
 
     male = GenderStats('Male')
     female = GenderStats('Female')
