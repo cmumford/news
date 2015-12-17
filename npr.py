@@ -359,6 +359,14 @@ class NPR(object):
       w.writeheader()
       w.writerow(the_dict)
 
+  def printFemaleTags(self):
+    for tag in NPR.female_all_tags:
+      print tag.title_
+
+  def printMaleTags(self):
+    for tag in NPR.male_all_tags:
+      print tag.title_
+
   def analyzeMatchingStories(self):
     NPR.loadTagsOfInterest()
     stories = self.loadStoriesFromFiles(NPR.all_tags, ['matching.xml'])
