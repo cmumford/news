@@ -117,7 +117,10 @@ class NPR(object):
   @staticmethod
   def findWomenTags(all_tags):
     tags = set()
-    ignore_ids = [126927651, 184560888]
+    ignore_ids = [
+      126927651, # "Mother Jones"
+      184560888  # "Mother's Day Shooting"
+    ]
     words = ['womens?', 'mothers?', 'girls?', 'daughters?', 'grandmothers?',
              'grandma', 'females?', 'feminism', '#15Girls', '15girls',
              "women's rights?", 'ovarian transplant']
@@ -135,7 +138,10 @@ class NPR(object):
   @staticmethod
   def findGirlTags(all_tags):
     tags = set()
-    ignore_ids = [126927651, 184560888]
+    ignore_ids = [
+      126927651, # "Mother Jones"
+      184560888  # "Mother's Day Shooting"
+    ]
     words = ['girls?', 'daughters?', '#15Girls', '15girls']
     # Questionable tags. Assuming mostly about women
     words.extend(['sexism'])
@@ -151,15 +157,20 @@ class NPR(object):
   @staticmethod
   def isSportsTag(tag):
     return tag.id_ in [
-      149849695,
-      149849693,
-      135170830
+      149849695,  # "NCAA men basketball"
+      149849693,  # "NCAA men's basketball"
+      135170830   # "NCAA women's basketball"
     ]
 
   @staticmethod
   def findMenTags(all_tags):
     tags = set()
-    ignore_ids = [126826632, 129251919, 152027155, 131877737]
+    ignore_ids = [
+      126826632,  # "Mad Men"
+      129251919,  # "No Country For Old Men"
+      152027155,  # "Beastie Boys"
+      131877737   # "The Blue Rhythm Boys"
+    ]
     words = ['men', "men's", 'fathers?', 'boys?', 'sons?', 'grandfathers?',
              'grandpa', 'male?']
     for word in words:
@@ -174,7 +185,12 @@ class NPR(object):
   @staticmethod
   def findBoyTags(all_tags):
     tags = set()
-    ignore_ids = [126826632, 129251919, 152027155, 131877737]
+    ignore_ids = [
+      126826632,  # "Mad Men"
+      129251919,  # "No Country For Old Men"
+      152027155,  # "Beastie Boys"
+      131877737   # "The Blue Rhythm Boys"
+    ]
     words = ['boys?', 'sons?']
     for word in words:
       reg = re.compile(r'.*\b%s\b.*' % word, re.IGNORECASE)
@@ -214,38 +230,6 @@ class NPR(object):
       total_stories += story_count
       print 'there are', story_count, 'stories. So far:', total_stories
       params['startNum'] = params['startNum'] + story_count
-
-  # Looks like searching by tags isn't an official API - I just guessed at it.
-  # Apparently that query doesn't support startNum for pagination, so this
-  # implementation uses dates to query the ranges.
-  # Note: Note, looks like dates are also ignored - this not working either.
-  def countTopics(self, tags):
-    params = {'format':'json', 'fields': 'none'}
-    if tags:
-      params.update({'searchType':'tags', 'searchTerm':'|'.join(tags)})
-    done = False
-    story_count = 0
-
-    start_date = datetime.datetime.strptime('2015-11-15', '%Y-%m-%d')
-    end_date = datetime.datetime.now()
-    while start_date < end_date:
-      end = start_date + datetime.timedelta(days=6)
-      p = copy.copy(params)
-      p.update({'startDate':start_date.strftime('%Y-%m-%d'),
-                'endDate':end.strftime('%Y-%m-%d')})
-      url = self.getUrl(p)
-      f = urllib.urlopen(url)
-      json_obj = json.loads(f.read())
-      story_list = json_obj['list']
-      if 'story' in story_list:
-        count = len(story_list['story'])
-      else:
-        count = 0
-      print start_date, 'count:', count
-      story_count += count
-      start_date += datetime.timedelta(days=7)
-
-    return story_count
 
   def loadStoriesFromFiles(self, all_tags, file_names):
     tags = {}
@@ -406,7 +390,7 @@ if __name__ == '__main__':
   api_key = open('key.txt').read().strip()
   npr = NPR(api_key)
 
-  # Expensive and *slow*
+  # Expensive and *slow* (~5 min.)
   #npr.extractMatchingStories()
 
   npr.analyzeMatchingStories()
