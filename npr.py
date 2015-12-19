@@ -60,6 +60,10 @@ class Story(object):
     self.title_ = ''
     self.date_ = None
     self.tags_ = []
+    self.text_ = []
+
+  def text(self):
+    return ' '.join(self.text_)
 
   def hasATag(self, tags):
     for tag in tags:
@@ -94,6 +98,10 @@ class GenderStats(object):
     return "%s total:%d cancer:%d youth:%d" % (self.title, self.total, \
                                                self.cancer, self.youth)
 
+  def asCsv(self):
+    return "Sex,Total,Cancer,Youth\n%s,%d,%d,%d" % \
+        (self.title, self.total, self.cancer, self.youth)
+
 # Read a collection of story files.
 class StoryReader(object):
   sleepSecs = 1
@@ -125,7 +133,7 @@ class StoryReader(object):
         self.lock.release()
       if not file_name:
         break
-      stories = self.npr.loadStoriesFromFiles(NPR.all_tags, [file_name])
+      stories = self.npr.loadStoriesFromFile(NPR.all_tags, file_name)
 
       num_files_read += 1
       elapsed = datetime.datetime.now() - start_time
@@ -328,32 +336,21 @@ class NPR(object):
       print 'there are', story_count, 'stories. So far:', total_stories
       params['startNum'] = params['startNum'] + story_count
 
-  def loadStoriesFromFiles(self, all_tags, file_names):
+  def loadStoriesFromFile(self, all_tags, file_name):
     stories = []
-    for fname in file_names:
-      root = xml.etree.ElementTree.parse(fname).getroot()
-      for xml_story in root.findall('list/story'):
-        story = Story(int(xml_story.get('id')))
-        story.title_ = xml_story.find('title').text
-        story.date_ = dateutil.parser.parse(xml_story.find('storyDate').text)
-        stories.append(story)
-        for parent in xml_story.findall("parent[@type='tag']"):
-          tag_id = int(parent.get('id'))
-          tag = NPR.tags[tag_id]
-          story.tags_.append(tag)
-    return stories
-
-  def loadStories(self, all_tags):
-    file_names = glob.glob('stories/*.xml')
-    return self.loadStoriesFromFiles(all_tags, file_names)
-
-  def loadMatchingStories(self, tags, all_tags):
-    stories = []
-    for story in self.loadStories(all_tags):
-      for tag in tags:
-        if tag in story.tags_:
-          stories.append(story)
-          break
+    root = xml.etree.ElementTree.parse(file_name).getroot()
+    for xml_story in root.findall('list/story'):
+      story = Story(int(xml_story.get('id')))
+      story.title_ = xml_story.find('title').text
+      story.date_ = dateutil.parser.parse(xml_story.find('storyDate').text)
+      stories.append(story)
+      for parent in xml_story.findall("parent[@type='tag']"):
+        tag_id = int(parent.get('id'))
+        tag = NPR.tags[tag_id]
+        story.tags_.append(tag)
+      for text in xml_story.findall("text/paragraph"):
+        if text.text:
+          story.text_.append(text.text)
     return stories
 
   def writeStoriesToXml(self, stories):
@@ -366,6 +363,12 @@ class NPR(object):
       for tag in story.tags_:
         parent = ET.SubElement(xml_story, "parent", type='tag', id=str(tag.id_))
         ET.SubElement(parent, "title").text = tag.title_
+      para_idx = 1
+      for text in story.text_:
+        xml_text = ET.SubElement(xml_story, "text")
+        t = text
+        ET.SubElement(xml_text, "paragraph", num=str(para_idx)).text = t
+        para_idx += 1
     tree = ET.ElementTree(root)
     tree.write("matching.xml")
 
@@ -440,45 +443,54 @@ class NPR(object):
       print tag.title_
 
   def analyzeMatchingStories(self):
-    NPR.loadTagsOfInterest()
-    stories = self.loadStoriesFromFiles(NPR.all_tags, ['matching.xml'])
-    print 'Analyzing', len(stories), 'stories'
+    all_stories = self.loadStoriesFromFile(NPR.all_tags, 'matching.xml')
+    print 'Analyzing', len(all_stories), 'stories'
 
-    male = GenderStats('Male')
-    female = GenderStats('Female')
+    for year in range(2010, 2016):
+      stories = []
+      for story in all_stories:
+        if story.date_.year == year:
+          stories.append(story)
 
-    counts = NPR.calcTagCounts(stories, NPR.female_all_tags)
-    NPR.printDictAsCSV(counts, 'analysis_female.csv')
-    female.addTotal(counts)
+      male = GenderStats('Male')
+      female = GenderStats('Female')
 
-    counts = NPR.calcTagCounts(stories, NPR.female_cancer_tags)
-    NPR.printDictAsCSV(counts, 'analysis_female_cancer.csv')
-    female.addCancer(counts)
+      counts = NPR.calcTagCounts(stories, NPR.female_all_tags)
+      NPR.printDictAsCSV(counts, 'analysis_female.csv')
+      female.addTotal(counts)
 
-    counts = NPR.calcTagCounts(stories, NPR.girl_tags)
-    NPR.printDictAsCSV(counts, 'analysis_girls.csv')
-    female.addYouth(counts)
+      counts = NPR.calcTagCounts(stories, NPR.female_cancer_tags)
+      NPR.printDictAsCSV(counts, 'analysis_female_cancer.csv')
+      female.addCancer(counts)
 
-    counts = NPR.calcTagCounts(stories, NPR.male_all_tags)
-    NPR.printDictAsCSV(counts, 'analysis_male.csv')
-    male.addTotal(counts)
+      counts = NPR.calcTagCounts(stories, NPR.girl_tags)
+      NPR.printDictAsCSV(counts, 'analysis_girls.csv')
+      female.addYouth(counts)
 
-    counts = NPR.calcTagCounts(stories, NPR.male_cancer_tags)
-    NPR.printDictAsCSV(counts, 'analysis_male_cancer.csv')
-    male.addCancer(counts)
+      counts = NPR.calcTagCounts(stories, NPR.male_all_tags)
+      NPR.printDictAsCSV(counts, 'analysis_male.csv')
+      male.addTotal(counts)
 
-    counts = NPR.calcTagCounts(stories, NPR.boy_tags)
-    NPR.printDictAsCSV(counts, 'analysis_boys.csv')
-    male.addYouth(counts)
+      counts = NPR.calcTagCounts(stories, NPR.male_cancer_tags)
+      NPR.printDictAsCSV(counts, 'analysis_male_cancer.csv')
+      male.addCancer(counts)
 
-    print female
-    print male
+      counts = NPR.calcTagCounts(stories, NPR.boy_tags)
+      NPR.printDictAsCSV(counts, 'analysis_boys.csv')
+      male.addYouth(counts)
+
+      print year
+      print female.asCsv()
+      print male.asCsv()
 
 if __name__ == '__main__':
-  api_key = open('key.txt').read().strip()
-  npr = NPR(api_key)
+  try:
+    api_key = open('key.txt').read().strip()
+    npr = NPR(api_key)
 
-  # Expensive and *slow* (~5 min.)
-  #npr.extractMatchingStories()
+    # Expensive and *slow* (~5 min.)
+    #npr.extractMatchingStories()
 
-  npr.analyzeMatchingStories()
+    npr.analyzeMatchingStories()
+  except KeyboardInterrupt:
+    keep_running = False
