@@ -3,20 +3,33 @@
 import copy
 import csv
 import datetime
+import dateutil.parser
 import glob
+import itertools
 import json
 import re
+import signal
+import string
 import sys
+import thread
+import threading
+import time
 import urllib
 import xml.etree.ElementTree
 import xml.etree.cElementTree as ET
-import itertools
-import dateutil.parser
 
 # Uses the NPR API: http://api.npr.org/
 # Query generator: http://www.npr.org/api/queryGenerator.php
 
 # Last startNum retrieved was 154534
+
+keep_running = True
+
+def handler(signum, frame):
+  print 'Signal handler called with signal %s' % signum
+  global keep_running
+  if signum == signal.SIGINT:
+    keep_running = False
 
 class Topics(object):
   All = 3002
@@ -48,6 +61,12 @@ class Story(object):
     self.date_ = None
     self.tags_ = []
 
+  def hasATag(self, tags):
+    for tag in tags:
+      if tag in self.tags_:
+        return True
+    return False
+
 class GenderStats(object):
   def __init__(self, title):
     self.title = title
@@ -75,9 +94,86 @@ class GenderStats(object):
     return "%s total:%d cancer:%d youth:%d" % (self.title, self.total, \
                                                self.cancer, self.youth)
 
+# Read a collection of story files.
+class StoryReader(object):
+  sleepSecs = 1
+
+  def __init__(self, npr, file_names):
+    self.npr = npr
+    self.files_to_read = file_names
+    self.stories = []
+    self.lock=thread.allocate_lock()
+    self.t = threading.Thread(target=self.threadReadFunc)
+    self.t.start()
+
+  def __iter__(self):
+    return self
+
+  def threadReadFunc(self):
+    global keep_running
+    num_files_read = 0
+    start_time = datetime.datetime.now()
+    num_files = len(self.files_to_read)
+    while keep_running:
+      file_name = None
+      try:
+        self.lock.acquire()
+        file_name = self.files_to_read.pop()
+      except IndexError:
+        pass
+      finally:
+        self.lock.release()
+      if not file_name:
+        break
+      stories = self.npr.loadStoriesFromFiles(NPR.all_tags, [file_name])
+
+      num_files_read += 1
+      elapsed = datetime.datetime.now() - start_time
+      files_per_sec = num_files_read / elapsed.total_seconds()
+      percent = num_files_read * 100.0 / num_files
+      remaining_secs = (num_files - num_files_read) / files_per_sec
+      print '%s: %.1f%%, fps:%.1f, remaining:%ds' % \
+          (file_name, percent, files_per_sec, remaining_secs)
+
+      try:
+        self.lock.acquire()
+        self.stories.extend(stories)
+      finally:
+        self.lock.release()
+
+  def next(self):
+    try:
+      self.lock.acquire()
+      num_files_left = len(self.files_to_read)
+      story = self.stories.pop()
+    except IndexError:
+      story = None
+    finally:
+      self.lock.release()
+
+    if story:
+      return story
+
+    if not num_files_left:
+      raise StopIteration
+
+    # If here then we're iterating faster than stories can be read, so wait for
+    # more stories to be added.
+    while not story:
+      time.sleep(StoryReader.sleepSecs)
+      try:
+        self.lock.acquire()
+        story = self.stories.pop()
+      except IndexError:
+        pass
+      finally:
+        self.lock.release()
+    return story
+
 class NPR(object):
   baseUrl = 'http://api.npr.org/query?'
   all_tags = []
+  tags = {}
   girl_tags = set()
   female_tags = set()
   boy_tags = set()
@@ -88,6 +184,7 @@ class NPR(object):
   male_stories = set()
 
   def __init__(self, api_key):
+    NPR.loadTagsOfInterest()
     self.api_key_ = api_key
 
   @staticmethod
@@ -232,20 +329,8 @@ class NPR(object):
       params['startNum'] = params['startNum'] + story_count
 
   def loadStoriesFromFiles(self, all_tags, file_names):
-    tags = {}
-    for tag in all_tags:
-      tags[tag.id_] = tag
     stories = []
-    start = datetime.datetime.now()
-    idx = 0
     for fname in file_names:
-      idx += 1
-      elapsed = datetime.datetime.now() - start
-      files_per_sec = idx / elapsed.total_seconds()
-      percent = idx * 100.0 / len(file_names)
-      remaining_secs = (len(file_names) - idx) / files_per_sec
-      print '%s: %.1f%%, fps:%.1f, remaining:%ds' % \
-          (fname, percent, files_per_sec, remaining_secs)
       root = xml.etree.ElementTree.parse(fname).getroot()
       for xml_story in root.findall('list/story'):
         story = Story(int(xml_story.get('id')))
@@ -254,7 +339,7 @@ class NPR(object):
         stories.append(story)
         for parent in xml_story.findall("parent[@type='tag']"):
           tag_id = int(parent.get('id'))
-          tag = tags[tag_id]
+          tag = NPR.tags[tag_id]
           story.tags_.append(tag)
     return stories
 
@@ -281,13 +366,14 @@ class NPR(object):
       for tag in story.tags_:
         parent = ET.SubElement(xml_story, "parent", type='tag', id=str(tag.id_))
         ET.SubElement(parent, "title").text = tag.title_
-
     tree = ET.ElementTree(root)
     tree.write("matching.xml")
 
   @staticmethod
   def loadTagsOfInterest():
     NPR.all_tags = NPR.loadTags()
+    for tag in NPR.all_tags:
+      NPR.tags[tag.id_] = tag
     NPR.female_tags = NPR.findWomenTags(NPR.all_tags)
     NPR.female_cancer_tags = NPR.findWomenCancerTags(NPR.all_tags)
     NPR.male_tags = NPR.findMenTags(NPR.all_tags)
@@ -308,12 +394,14 @@ class NPR(object):
   # Extract a subset of the stories, and write them to a single file for
   # analysis.
   def extractMatchingStories(self):
-    NPR.loadTagsOfInterest()
-
     combined_tags = copy.copy(NPR.female_all_tags)
     combined_tags |= NPR.male_all_tags
 
-    matching_stories = npr.loadMatchingStories(combined_tags, NPR.all_tags)
+    matching_stories = []
+    for story in StoryReader(self, glob.glob('stories/*.xml')):
+      if story.hasATag(combined_tags):
+        matching_stories.append(story)
+
     print 'There are', len(matching_stories), 'matching stories'
     npr.writeStoriesToXml(matching_stories)
 
