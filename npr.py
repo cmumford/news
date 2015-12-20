@@ -20,6 +20,7 @@ from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import confusion_matrix
 from sklearn.naive_bayes import MultinomialNB
+from sklearn.pipeline import Pipeline
 from sklearn.svm import SVC
 import string
 import sys
@@ -198,7 +199,7 @@ class StoryReader(object):
 
   def __init__(self, npr, file_names):
     self.npr = npr
-    self.files_to_read = file_names
+    self.files_to_read = file_names[:100]
     self.stories = []
     self.lock = threading.Lock()
     self.t = threading.Thread(target=self.threadReadFunc)
@@ -623,33 +624,45 @@ class NPR(object):
     data = []
     targets = []
     stories = []
-    story_texts = []
-    combined_tags = copy.copy(NPR.female_options.all_tags)
-    combined_tags |= NPR.female_options.all_tags
+    tag_counts = {}
+    # First scan to calculate counts
     for story in StoryReader(self, glob.glob('stories/*.xml')):
       stories.append(story)
-      story_text = story.rawText()
-      story_texts.append(story_text)
-      if not story.hasATag(combined_tags):
-        continue
       for tag in story.tags_:
-        data.append(story_text)
-        if not tag in tags:
-          tags.append(tag)
-        targets.append(tags.index(tag))
-    count_vect = CountVectorizer()
-    X_train_counts = count_vect.fit_transform(data)
-    tfidf_transformer = TfidfTransformer()
-    X_train_tfidf = tfidf_transformer.fit_transform(X_train_counts)
-    clf = MultinomialNB().fit(X_train_tfidf, targets)
+        if tag in tag_counts:
+          tag_counts[tag] += 1
+        else:
+          tag_counts[tag] = 1
 
-    X_new_counts = count_vect.transform(story_texts)
-    X_new_tfidf = tfidf_transformer.transform(X_new_counts)
-    predicted = clf.predict(X_new_tfidf)
-    idx = 0
-    for doc, category in zip(story_texts, predicted):
-      print('%r => %s' % (stories[idx].title_, tags[category].title_))
-      idx += 1
+    # Now gather the data for stories with enough tags.
+    for story in stories:
+      story_text = story.rawText()
+      for tag in story.tags_:
+        if tag_counts[tag] >= 30:
+          data.append(story_text)
+          if tag not in tags:
+            tags.append(tag)
+          targets.append(tags.index(tag))
+
+    print 'Predicting for tags:'
+    for tag in tags:
+      print tag.title_
+
+    # Fit the data
+    text_clf = Pipeline([('vect', CountVectorizer()),
+                         ('tfidf', TfidfTransformer()),
+                         ('clf', MultinomialNB()),
+    ])
+    text_clf = text_clf.fit(data, targets)
+
+    # Now fit *all* stories
+    story_texts = []
+    for story in stories:
+      story_texts.append(story.rawText())
+
+    predicted = text_clf.predict(story_texts)
+    for story, category in zip(stories, predicted):
+      print('%r => %s' % (story.title_, tags[category].title_))
 
 if __name__ == '__main__':
   try:
