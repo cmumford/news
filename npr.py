@@ -14,6 +14,13 @@ import nltk.data
 from operator import attrgetter
 import re
 import signal
+from sklearn.cross_validation import train_test_split
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import confusion_matrix
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.svm import SVC
 import string
 import sys
 import threading
@@ -610,6 +617,39 @@ class NPR(object):
         neg.add(n)
     print(pos)
     print(neg)
+
+  def train(self):
+    tags = []
+    data = []
+    targets = []
+    stories = []
+    story_texts = []
+    combined_tags = copy.copy(NPR.female_options.all_tags)
+    combined_tags |= NPR.female_options.all_tags
+    for story in StoryReader(self, glob.glob('stories/*.xml')):
+      stories.append(story)
+      story_text = story.rawText()
+      story_texts.append(story_text)
+      if not story.hasATag(combined_tags):
+        continue
+      for tag in story.tags_:
+        data.append(story_text)
+        if not tag in tags:
+          tags.append(tag)
+        targets.append(tags.index(tag))
+    count_vect = CountVectorizer()
+    X_train_counts = count_vect.fit_transform(data)
+    tfidf_transformer = TfidfTransformer()
+    X_train_tfidf = tfidf_transformer.fit_transform(X_train_counts)
+    clf = MultinomialNB().fit(X_train_tfidf, targets)
+
+    X_new_counts = count_vect.transform(story_texts)
+    X_new_tfidf = tfidf_transformer.transform(X_new_counts)
+    predicted = clf.predict(X_new_tfidf)
+    idx = 0
+    for doc, category in zip(story_texts, predicted):
+      print('%r => %s' % (stories[idx].title_, tags[category].title_))
+      idx += 1
 
 if __name__ == '__main__':
   try:
