@@ -7,6 +7,7 @@ import dateutil.parser
 import glob
 import itertools
 import json
+from operator import attrgetter
 import re
 import signal
 import string
@@ -133,7 +134,7 @@ class StoryReader(object):
         self.lock.release()
       if not file_name:
         break
-      stories = self.npr.loadStoriesFromFile(NPR.all_tags, file_name)
+      stories = self.npr.loadStoriesFromFile(file_name)
 
       num_files_read += 1
       elapsed = datetime.datetime.now() - start_time
@@ -336,7 +337,7 @@ class NPR(object):
       print 'there are', story_count, 'stories. So far:', total_stories
       params['startNum'] = params['startNum'] + story_count
 
-  def loadStoriesFromFile(self, all_tags, file_name):
+  def loadStoriesFromFile(self, file_name):
     stories = []
     root = xml.etree.ElementTree.parse(file_name).getroot()
     for xml_story in root.findall('list/story'):
@@ -434,16 +435,49 @@ class NPR(object):
       w.writeheader()
       w.writerow(the_dict)
 
-  def printFemaleTags(self):
+  def printFemaleTags(self, stories):
+    print 'Female tags'
+    print '==========='
+    counts = {}
+    for story in stories:
+      for tag in story.tags_:
+        if tag in counts:
+          counts[tag] = counts[tag] + 1
+        else:
+          counts[tag] = 1
+    total = 0
     for tag in NPR.female_all_tags:
-      print tag.title_
+      count = counts[tag] if tag in counts else 0
+      total += count
+      print '%s:%d' % (tag.title_, count)
+    print '---------'
+    print 'Total:%d' % total
 
-  def printMaleTags(self):
-    for tag in NPR.male_all_tags:
-      print tag.title_
+  def printMaleTags(self, stories):
+    print 'Male tags'
+    print '========='
+    counts = {}
+    for story in stories:
+      for tag in story.tags_:
+        if tag in counts:
+          counts[tag] = counts[tag] + 1
+        else:
+          counts[tag] = 1
+    total = 0
+    for tag in sorted(NPR.male_all_tags, key=attrgetter('title_')):
+      count = counts[tag] if tag in counts else 0
+      total += count
+      print '%s:%d' % (tag.title_, count)
+    print '---------'
+    print 'Total:%d' % total
+
+  def printAllTags(self, stories):
+    self.printFemaleTags(stories)
+    print
+    self.printMaleTags(stories)
 
   def analyzeMatchingStories(self):
-    all_stories = self.loadStoriesFromFile(NPR.all_tags, 'matching.xml')
+    all_stories = self.loadStoriesFromFile('matching.xml')
     print 'Analyzing', len(all_stories), 'stories'
 
     for year in range(2010, 2016):
