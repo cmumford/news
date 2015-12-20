@@ -435,26 +435,8 @@ class NPR(object):
       w.writeheader()
       w.writerow(the_dict)
 
-  def printFemaleTags(self, stories):
-    print 'Female tags'
-    print '==========='
-    counts = {}
-    for story in stories:
-      for tag in story.tags_:
-        if tag in counts:
-          counts[tag] = counts[tag] + 1
-        else:
-          counts[tag] = 1
-    total = 0
-    for tag in NPR.female_all_tags:
-      count = counts[tag] if tag in counts else 0
-      total += count
-      print '%s:%d' % (tag.title_, count)
-    print '---------'
-    print 'Total:%d' % total
-
-  def printMaleTags(self, stories):
-    print 'Male tags'
+  def printTags(self, title, stories, tags):
+    print '%s tags' % title
     print '========='
     counts = {}
     for story in stories:
@@ -464,7 +446,7 @@ class NPR(object):
         else:
           counts[tag] = 1
     total = 0
-    for tag in sorted(NPR.male_all_tags, key=attrgetter('title_')):
+    for tag in sorted(tags, key=attrgetter('title_')):
       count = counts[tag] if tag in counts else 0
       total += count
       print '%s:%d' % (tag.title_, count)
@@ -472,17 +454,17 @@ class NPR(object):
     print 'Total:%d' % total
 
   def printAllTags(self, stories):
-    self.printFemaleTags(stories)
+    self.printags('Female', stories, NPR.female_all_tags)
     print
-    self.printMaleTags(stories)
+    self.printags('Male', stories, NPR.male_all_tags)
 
   def analyzeMatchingStories(self):
-    all_stories = self.loadStoriesFromFile('matching.xml')
-    print 'Analyzing', len(all_stories), 'stories'
+    matching_stories = self.loadStoriesFromFile('matching.xml')
+    print 'Analyzing', len(matching_stories), 'matching stories'
 
     for year in range(2010, 2016):
       stories = []
-      for story in all_stories:
+      for story in matching_stories:
         if story.date_.year == year:
           stories.append(story)
 
@@ -526,5 +508,6 @@ if __name__ == '__main__':
     #npr.extractMatchingStories()
 
     npr.analyzeMatchingStories()
-  except KeyboardInterrupt:
+  except Exception:
     keep_running = False
+    raise
