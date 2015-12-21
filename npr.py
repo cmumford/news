@@ -19,8 +19,10 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import confusion_matrix
-from sklearn.naive_bayes import MultinomialNB
+from sklearn.multiclass import OneVsRestClassifier
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.svm import LinearSVC
 from sklearn.svm import SVC
 import string
 import sys
@@ -620,9 +622,6 @@ class NPR(object):
     print(neg)
 
   def train(self):
-    tags = []
-    data = []
-    targets = []
     stories = []
     tag_counts = {}
     # First scan to calculate counts
@@ -635,25 +634,30 @@ class NPR(object):
           tag_counts[tag] = 1
 
     # Now gather the data for stories with enough tags.
+    tags = []
+    data = []
+    targets = []
     for story in stories:
       story_text = story.rawText()
+      tt = []
       for tag in story.tags_:
-        if tag_counts[tag] >= 30:
-          data.append(story_text)
+        if tag_counts[tag] >= 20:
           if tag not in tags:
             tags.append(tag)
-          targets.append(tags.index(tag))
+          tt.append(tag.title_)
+      if len(tt):
+        data.append(story_text)
+        targets.append(tt)
 
-    print 'Predicting for tags:'
-    for tag in tags:
-      print tag.title_
+    lb = MultiLabelBinarizer()
+    Y = lb.fit_transform(targets)
 
     # Fit the data
     text_clf = Pipeline([('vect', CountVectorizer()),
                          ('tfidf', TfidfTransformer()),
-                         ('clf', MultinomialNB()),
-    ])
-    text_clf = text_clf.fit(data, targets)
+                         ('clf', OneVsRestClassifier(LinearSVC()))
+                        ])
+    text_clf = text_clf.fit(data, Y)
 
     # Now fit *all* stories
     story_texts = []
@@ -661,8 +665,9 @@ class NPR(object):
       story_texts.append(story.rawText())
 
     predicted = text_clf.predict(story_texts)
-    for story, category in zip(stories, predicted):
-      print('%r => %s' % (story.title_, tags[category].title_))
+    all_labels = lb.inverse_transform(predicted)
+    for story, categories in zip(stories, all_labels):
+      print '%r => %s' % (story.title_, ','.join(categories) )
 
 if __name__ == '__main__':
   try:
