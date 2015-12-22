@@ -16,7 +16,6 @@ import thread
 import threading
 import time
 import urllib
-import xml.etree.ElementTree
 import xml.etree.cElementTree as ET
 
 # Uses the NPR API: http://api.npr.org/
@@ -198,7 +197,7 @@ class NPR(object):
 
   @staticmethod
   def loadTags():
-    root = xml.etree.ElementTree.parse('tags.xml').getroot()
+    root = ET.parse('tags.xml').getroot()
     tags = []
     for item in root.findall('item'):
       tags.append(Tag(int(item.get('id')),
@@ -331,7 +330,7 @@ class NPR(object):
       xml_response = f.read()
       with open('stories/startNum_%d.xml' % params['startNum'], 'w') as f:
         f.write(xml_response)
-      root = xml.etree.ElementTree.fromstring(xml_response)
+      root = ET.fromstring(xml_response)
       story_count = len(root.findall('list/story'))
       total_stories += story_count
       print 'there are', story_count, 'stories. So far:', total_stories
@@ -339,7 +338,7 @@ class NPR(object):
 
   def loadStoriesFromFile(self, file_name):
     stories = []
-    root = xml.etree.ElementTree.parse(file_name).getroot()
+    root = ET.parse(file_name).getroot()
     for xml_story in root.findall('list/story'):
       story = Story(int(xml_story.get('id')))
       story.title_ = xml_story.find('title').text
