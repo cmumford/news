@@ -649,10 +649,11 @@ class NPR(object):
         data.append(story_text)
         targets.append(tt)
 
+    print "Transforming targets..."
     lb = MultiLabelBinarizer()
     Y = lb.fit_transform(targets)
 
-    # Fit the data
+    print >> sys.stderr, "Training classifier..."
     text_clf = Pipeline([('vect', CountVectorizer()),
                          ('tfidf', TfidfTransformer()),
                          ('clf', OneVsRestClassifier(LinearSVC(), n_jobs=-1))
@@ -664,10 +665,13 @@ class NPR(object):
     for story in stories:
       story_texts.append(story.rawText())
 
+    print "Predicting stories..."
     predicted = text_clf.predict(story_texts)
+    print "Printing results..."
     all_labels = lb.inverse_transform(predicted)
-    for story, categories in zip(stories, all_labels):
-      print '%r => %s' % (story.title_, ','.join(categories) )
+    with open('categorized.txt', 'w') as f:
+      for story, categories in zip(stories, all_labels):
+        print >> f, '%r => %s' % (story.title_, ','.join(categories) )
 
 if __name__ == '__main__':
   try:
