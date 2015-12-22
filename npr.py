@@ -507,6 +507,6 @@ if __name__ == '__main__':
     #npr.extractMatchingStories()
 
     npr.analyzeMatchingStories()
-  except Exception:
+  except:
     keep_running = False
     raise
