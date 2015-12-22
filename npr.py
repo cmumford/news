@@ -214,176 +214,77 @@ class StoryReader(object):
     return story
 
 class GenderOptions(object):
-  def __init__(self, groups):
+  def __init__(self, groups, all_tags, ignore_tag_ids):
     self.res = {}
+    self.tags = {}
+    self.all_tags = set()
     self.all_res = {}
     for group in groups:
-      res = []
+      self.res[group] = []
+      self.tags[group] = set()
       for re_str in groups[group]:
         reg = re.compile(r'\b%s\b' % re_str, re.IGNORECASE)
-        res.append(reg)
+        self.res[group].append(reg)
         self.all_res[re_str] = reg
-      self.res[group] = res
+        for tag in all_tags:
+          if reg.findall(tag.title_) and not tag.id_ in ignore_tag_ids:
+            self.tags[group].add(tag)
+            self.all_tags.add(tag)
 
 class MaleOptions(GenderOptions):
-  def __init__(self):
+  def __init__(self, all_tags, ignore_tag_ids):
     super(MaleOptions, self).__init__({
       'adult' : ['mens?', "men's", "man's", "father'?s?", "grandfather'?s?",
                  'grandpa', 'males?', 'masculism', "men's rights"],
       'youth' : ['sons?', 'boys?', 'grandpa'],
-      'cancer': ['prostate cancer']})
+      'cancer': ['prostate cancer']}, all_tags, ignore_tag_ids)
 
 class FemaleOptions(GenderOptions):
-  def __init__(self):
+  def __init__(self, all_tags, ignore_tag_ids):
     super(FemaleOptions, self).__init__({
       'adult' : ['womens?', "women's", "woman's", "mother'?s?",
                  "grandmother'?s?", 'grandma', 'females?', 'feminism',
                  "women's rights?", 'ovarian transplant'],
       'youth' : ['girls?', 'daughters?', '15girls'],
-      'cancer': ['breast cancer']})
+      'cancer': ['breast cancer']}, all_tags, ignore_tag_ids)
+
+def loadTags():
+  root = ET.parse('tags.xml').getroot()
+  tags = []
+  for item in root.findall('item'):
+    tags.append(Tag(int(item.get('id')),
+                    int(item.get('num')),
+                    item.find('title').text,
+                    item.find('additionalInfo').text))
+  return tags
 
 class NPR(object):
   baseUrl = 'http://api.npr.org/query?'
-  all_tags = []
-  tags = {}
-  girl_tags = set()
-  female_tags = set()
-  boy_tags = set()
-  male_tags = set()
-  female_cancer_tags = set()
-  male_cancer_tags = set()
-  female_stories = set()
-  male_stories = set()
-  female_options = FemaleOptions()
-  male_options = MaleOptions()
+  ignore_tag_ids = [
+    126927651,  # "Mother Jones"
+    184560888,  # "Mother's Day Shooting"
+    126826632,  # "Mad Men"
+    129251919,  # "No Country For Old Men"
+    152027155,  # "Beastie Boys"
+    131877737,  # "The Blue Rhythm Boys"
+  ]
+  sports_tag_ids = [
+    149849695,  # "NCAA men basketball"
+    149849693,  # "NCAA men's basketball"
+    135170830   # "NCAA women's basketball"
+  ]
+  all_tags = loadTags()
+  tags = {tag.id_:tag for tag in all_tags}
+  female_options = FemaleOptions(all_tags, ignore_tag_ids)
+  male_options = MaleOptions(all_tags, ignore_tag_ids)
 
   def __init__(self, api_key):
-    NPR.loadTagsOfInterest()
     self.api_key_ = api_key
-
-  @staticmethod
-  def loadTags():
-    root = ET.parse('tags.xml').getroot()
-    tags = []
-    for item in root.findall('item'):
-      tags.append(Tag(int(item.get('id')),
-                      int(item.get('num')),
-                      item.find('title').text,
-                      item.find('additionalInfo').text))
-    return tags
-
-  @staticmethod
-  def findMatchingTags(reg_str, all_tags):
-    tags = set()
-    reg = re.compile(reg_str, re.IGNORECASE)
-    for tag in all_tags:
-      if reg.match(tag.title_):
-        tags.add(tag)
-    return tags
-
-  @staticmethod
-  def findWomenCancerTags(all_tags):
-    return NPR.findMatchingTags(r'.*breast cancer.*', all_tags)
-
-  @staticmethod
-  def findWomenTags(all_tags):
-    tags = set()
-    ignore_ids = [
-      126927651, # "Mother Jones"
-      184560888  # "Mother's Day Shooting"
-    ]
-    words = ['womens?', 'mothers?', 'girls?', 'daughters?', 'grandmothers?',
-             'grandma', 'females?', 'feminism', '#15Girls', '15girls',
-             "women's rights?", 'ovarian transplant']
-    # Questionable tags. Assuming mostly about women
-    words.extend(['sexism'])
-    for word in words:
-      reg = re.compile(r'.*\b%s\b.*' % word, re.IGNORECASE)
-      for tag in all_tags:
-        if tag.id_ not in ignore_ids \
-            and not NPR.isSportsTag(tag) \
-            and reg.match(tag.title_):
-          tags.add(tag)
-    return tags
-
-  @staticmethod
-  def findGirlTags(all_tags):
-    tags = set()
-    ignore_ids = [
-      126927651, # "Mother Jones"
-      184560888  # "Mother's Day Shooting"
-    ]
-    words = ['girls?', 'daughters?', '#15Girls', '15girls']
-    # Questionable tags. Assuming mostly about women
-    words.extend(['sexism'])
-    for word in words:
-      reg = re.compile(r'.*\b%s\b.*' % word, re.IGNORECASE)
-      for tag in all_tags:
-        if tag.id_ not in ignore_ids \
-            and not NPR.isSportsTag(tag) \
-            and reg.match(tag.title_):
-          tags.add(tag)
-    return tags
-
-  @staticmethod
-  def isSportsTag(tag):
-    return tag.id_ in [
-      149849695,  # "NCAA men basketball"
-      149849693,  # "NCAA men's basketball"
-      135170830   # "NCAA women's basketball"
-    ]
-
-  @staticmethod
-  def findMenTags(all_tags):
-    tags = set()
-    ignore_ids = [
-      126826632,  # "Mad Men"
-      129251919,  # "No Country For Old Men"
-      152027155,  # "Beastie Boys"
-      131877737   # "The Blue Rhythm Boys"
-    ]
-    words = ['men', "men's", 'fathers?', 'boys?', 'sons?', 'grandfathers?',
-             'grandpa', 'male?']
-    for word in words:
-      reg = re.compile(r'.*\b%s\b.*' % word, re.IGNORECASE)
-      for tag in all_tags:
-        if tag.id_ not in ignore_ids \
-          and not NPR.isSportsTag(tag) \
-          and reg.match(tag.title_):
-          tags.add(tag)
-    return tags
-
-  @staticmethod
-  def findBoyTags(all_tags):
-    tags = set()
-    ignore_ids = [
-      126826632,  # "Mad Men"
-      129251919,  # "No Country For Old Men"
-      152027155,  # "Beastie Boys"
-      131877737   # "The Blue Rhythm Boys"
-    ]
-    words = ['boys?', 'sons?']
-    for word in words:
-      reg = re.compile(r'.*\b%s\b.*' % word, re.IGNORECASE)
-      for tag in all_tags:
-        if tag.id_ not in ignore_ids \
-          and not NPR.isSportsTag(tag) \
-          and reg.match(tag.title_):
-          tags.add(tag)
-    return tags
-
-  @staticmethod
-  def findMaleCancerTags(all_tags):
-    return NPR.findMatchingTags(r'.*prostate.*', all_tags)
 
   def getUrl(self, params = {}):
     common_params = {'apiKey': self.api_key_}
     params.update(common_params)
     return NPR.baseUrl + urllib.urlencode(params)
-
-  @staticmethod
-  def getYMD(dt):
-    return dt.strftime('%Y-%m-%d')
 
   def downloadData(self):
     params = {'startNum':154534, 'numResults':20}
@@ -438,33 +339,11 @@ class NPR(object):
     tree = ET.ElementTree(root)
     tree.write("matching.xml")
 
-  @staticmethod
-  def loadTagsOfInterest():
-    NPR.all_tags = NPR.loadTags()
-    for tag in NPR.all_tags:
-      NPR.tags[tag.id_] = tag
-    NPR.female_tags = NPR.findWomenTags(NPR.all_tags)
-    NPR.female_cancer_tags = NPR.findWomenCancerTags(NPR.all_tags)
-    NPR.male_tags = NPR.findMenTags(NPR.all_tags)
-    NPR.male_cancer_tags = NPR.findMaleCancerTags(NPR.all_tags)
-    NPR.boy_tags = NPR.findBoyTags(NPR.all_tags)
-    NPR.girl_tags = NPR.findGirlTags(NPR.all_tags)
-
-    NPR.female_all_tags = set()
-    NPR.female_all_tags |= NPR.female_tags
-    NPR.female_all_tags |= NPR.female_cancer_tags
-    NPR.female_all_tags |= NPR.girl_tags
-
-    NPR.male_all_tags = set()
-    NPR.male_all_tags |= NPR.male_tags
-    NPR.male_all_tags |= NPR.male_cancer_tags
-    NPR.male_all_tags |= NPR.boy_tags
-
   # Extract a subset of the stories, and write them to a single file for
   # analysis.
   def extractMatchingStories(self):
-    combined_tags = copy.copy(NPR.female_all_tags)
-    combined_tags |= NPR.male_all_tags
+    combined_tags = copy.copy(NPR.female_options.all_tags)
+    combined_tags |= NPR.male_options.all_tags
 
     matching_stories = []
     for story in StoryReader(self, glob.glob('stories/*.xml')):
@@ -519,9 +398,10 @@ class NPR(object):
     print 'Total:%d' % total
 
   def printAllTags(self, stories):
-    self.printags('Female', stories, NPR.female_all_tags)
     print
-    self.printags('Male', stories, NPR.male_all_tags)
+    self.printTags('Female', stories, NPR.female_options.all_tags)
+    print
+    self.printTags('Male', stories, NPR.male_options.all_tags)
 
   def analyzeMatchingStories(self):
     matching_stories = self.loadStoriesFromFile('matching.xml')
@@ -536,27 +416,27 @@ class NPR(object):
       male = GenderStats('Male')
       female = GenderStats('Female')
 
-      counts = NPR.calcTagCounts(stories, NPR.female_all_tags)
+      counts = NPR.calcTagCounts(stories, NPR.female_options.all_tags)
       NPR.printDictAsCSV(counts, 'analysis_female.csv')
       female.addTotal(counts)
 
-      counts = NPR.calcTagCounts(stories, NPR.female_cancer_tags)
+      counts = NPR.calcTagCounts(stories, NPR.female_options.tags['cancer'])
       NPR.printDictAsCSV(counts, 'analysis_female_cancer.csv')
       female.addCancer(counts)
 
-      counts = NPR.calcTagCounts(stories, NPR.girl_tags)
+      counts = NPR.calcTagCounts(stories, NPR.female_options.tags['youth'])
       NPR.printDictAsCSV(counts, 'analysis_girls.csv')
       female.addYouth(counts)
 
-      counts = NPR.calcTagCounts(stories, NPR.male_all_tags)
+      counts = NPR.calcTagCounts(stories, NPR.male_options.all_tags)
       NPR.printDictAsCSV(counts, 'analysis_male.csv')
       male.addTotal(counts)
 
-      counts = NPR.calcTagCounts(stories, NPR.male_cancer_tags)
+      counts = NPR.calcTagCounts(stories, NPR.male_options.tags['cancer'])
       NPR.printDictAsCSV(counts, 'analysis_male_cancer.csv')
       male.addCancer(counts)
 
-      counts = NPR.calcTagCounts(stories, NPR.boy_tags)
+      counts = NPR.calcTagCounts(stories, NPR.female_options.tags['youth'])
       NPR.printDictAsCSV(counts, 'analysis_boys.csv')
       male.addYouth(counts)
 
@@ -604,7 +484,7 @@ if __name__ == '__main__':
     npr = NPR(api_key)
 
     # Expensive and *slow* (~5 min.)
-    #npr.extractMatchingStories()
+    npr.extractMatchingStories()
 
     npr.analyzeMatchingStories()
   except:
