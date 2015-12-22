@@ -658,7 +658,7 @@ class NPR(object):
     Y = lb.fit_transform(targets)
 
     print >> sys.stderr, "Training classifier..."
-    text_clf = Pipeline([('vect', CountVectorizer()),
+    text_clf = Pipeline([('vect', CountVectorizer(stop_words='english')),
                          ('tfidf', TfidfTransformer()),
                          ('clf', OneVsRestClassifier(LinearSVC(), n_jobs=-1))
                         ])
