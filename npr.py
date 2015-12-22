@@ -790,6 +790,8 @@ class NPR(object):
     tag_counts = {}
     # First scan to calculate counts
     for story in StoryReader(self, glob.glob('stories/*.xml')):
+      if not story.hasText():
+        continue
       stories.append(story)
       for tag in story.tags_:
         if tag in tag_counts:
