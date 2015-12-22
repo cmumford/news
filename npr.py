@@ -110,7 +110,7 @@ class StoryReader(object):
     self.npr = npr
     self.files_to_read = file_names
     self.stories = []
-    self.lock=thread.allocate_lock()
+    self.lock = thread.allocate_lock()
     self.t = threading.Thread(target=self.threadReadFunc)
     self.t.start()
 
@@ -121,6 +121,8 @@ class StoryReader(object):
     global keep_running
     num_files_read = 0
     start_time = datetime.datetime.now()
+    print_delay = datetime.timedelta(seconds=1)
+    next_print_time = start_time
     num_files = len(self.files_to_read)
     while keep_running:
       file_name = None
@@ -136,12 +138,15 @@ class StoryReader(object):
       stories = self.npr.loadStoriesFromFile(file_name)
 
       num_files_read += 1
-      elapsed = datetime.datetime.now() - start_time
-      files_per_sec = num_files_read / elapsed.total_seconds()
-      percent = num_files_read * 100.0 / num_files
-      remaining_secs = (num_files - num_files_read) / files_per_sec
-      print '%s: %.1f%%, fps:%.1f, remaining:%ds' % \
-          (file_name, percent, files_per_sec, remaining_secs)
+      now = datetime.datetime.now()
+      if now >= next_print_time:
+        elapsed = datetime.datetime.now() - start_time
+        files_per_sec = num_files_read / elapsed.total_seconds()
+        percent = num_files_read * 100.0 / num_files
+        remaining_secs = (num_files - num_files_read) / files_per_sec
+        print >> sys.stderr,  '%s: %.1f%%, fps:%.1f, remaining:%ds' % \
+            (file_name, percent, files_per_sec, remaining_secs)
+        next_print_time = now + print_delay
 
       try:
         self.lock.acquire()
