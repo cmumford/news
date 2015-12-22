@@ -819,7 +819,7 @@ class NPR(object):
     # Fit the data
     text_clf = Pipeline([('vect', CountVectorizer()),
                          ('tfidf', TfidfTransformer()),
-                         ('clf', OneVsRestClassifier(LinearSVC()))
+                         ('clf', OneVsRestClassifier(LinearSVC(), n_jobs=-1))
                         ])
     text_clf = text_clf.fit(data, Y)
 
