@@ -55,6 +55,12 @@ class Tag(object):
     return unicode(self).encode('utf-8')
 
 class Story(object):
+  copyright_re = re.compile(r'Copyright \d+ NPR')
+  exclude = set(string.punctuation)
+  exclude.add(u'\u2013') # endash
+  exclude.add(u'\u2014') # emdash
+  excludeStr = ''.join(exclude)
+
   def __init__(self, id):
     self.id_ = id
     self.title_ = ''
@@ -64,6 +70,30 @@ class Story(object):
 
   def text(self):
     return ' '.join(self.text_)
+
+  def hasText(self):
+    return len(self.text_) > 0
+
+  @staticmethod
+  def stripPunctuation(word):
+    return word.strip(Story.excludeStr)
+
+  # Strip out punctuation, and return all story text suitable for analysis.
+  def rawText(self):
+    words = []
+    for para in self.text_:
+      newSentence = True
+      para = re.sub(Story.copyright_re, '', para)
+      for word in para.split():
+        word.strip()
+        if newSentence:
+          if len(word) > 1:
+            word = word.lower()
+          newSentence = False
+        newSentence = word.endswith('.')
+        words.append(Story.stripPunctuation(word))
+    text = ' '.join(words)
+    return re.sub(Story.copyright_re, '', text)
 
   def hasATag(self, tags):
     for tag in tags:
@@ -183,6 +213,35 @@ class StoryReader(object):
         self.lock.release()
     return story
 
+class GenderOptions(object):
+  def __init__(self, groups):
+    self.res = {}
+    self.all_res = {}
+    for group in groups:
+      res = []
+      for re_str in groups[group]:
+        reg = re.compile(r'\b%s\b' % re_str, re.IGNORECASE)
+        res.append(reg)
+        self.all_res[re_str] = reg
+      self.res[group] = res
+
+class MaleOptions(GenderOptions):
+  def __init__(self):
+    super(MaleOptions, self).__init__({
+      'adult' : ['mens?', "men's", "man's", "father'?s?", "grandfather'?s?",
+                 'grandpa', 'males?', 'masculism', "men's rights"],
+      'youth' : ['sons?', 'boys?', 'grandpa'],
+      'cancer': ['prostate cancer']})
+
+class FemaleOptions(GenderOptions):
+  def __init__(self):
+    super(FemaleOptions, self).__init__({
+      'adult' : ['womens?', "women's", "woman's", "mother'?s?",
+                 "grandmother'?s?", 'grandma', 'females?', 'feminism',
+                 "women's rights?", 'ovarian transplant'],
+      'youth' : ['girls?', 'daughters?', '15girls'],
+      'cancer': ['breast cancer']})
+
 class NPR(object):
   baseUrl = 'http://api.npr.org/query?'
   all_tags = []
@@ -195,6 +254,8 @@ class NPR(object):
   male_cancer_tags = set()
   female_stories = set()
   male_stories = set()
+  female_options = FemaleOptions()
+  male_options = MaleOptions()
 
   def __init__(self, api_key):
     NPR.loadTagsOfInterest()
@@ -502,6 +563,40 @@ class NPR(object):
       print year
       print female.asCsv()
       print male.asCsv()
+
+  def countGenders(self):
+    female_counts = {}
+    for key in self.female_options.all_res:
+      female_counts[key] = 0
+    male_counts = {}
+    for key in self.male_options.all_res:
+      male_counts[key] = 0
+
+    for story in StoryReader(self, glob.glob('stories/*.xml')):
+      story_text = story.rawText()
+      for reg in self.female_options.all_res:
+        female_counts[reg] += len(self.female_options.all_res[reg].findall(story_text))
+      for reg in self.male_options.all_res:
+        male_counts[reg] += len(self.male_options.all_res[reg].findall(story_text))
+
+    print 'Female counts:'
+    print '=============='
+    total = 0
+    for reg in female_counts:
+      print '%s: %d' % (reg, female_counts[reg])
+      total += female_counts[reg]
+    print '--------------'
+    print 'Total:', total
+
+    print
+    print 'Male counts:'
+    print '============'
+    total = 0
+    for reg in male_counts:
+      print '%s: %d' % (reg, male_counts[reg])
+      total += male_counts[reg]
+    print '--------------'
+    print 'Total:', total
 
 if __name__ == '__main__':
   try:
