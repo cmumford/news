@@ -639,11 +639,13 @@ class NPR(object):
     tags = []
     data = []
     targets = []
+    combined_tags = copy.copy(NPR.female_options.all_tags)
+    combined_tags |= NPR.male_options.all_tags
     for story in stories:
       story_text = story.rawText()
       tt = []
       for tag in story.tags_:
-        if tag_counts[tag] >= 20:
+        if tag_counts[tag] >= 15 or tag in combined_tags:
           if tag not in tags:
             tags.append(tag)
           tt.append(tag.title_)
