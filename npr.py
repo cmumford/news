@@ -55,7 +55,7 @@ class Tag(object):
     return unicode(self).encode('utf-8')
 
 class Story(object):
-  copyright_re = re.compile(r'Copyright \d+ NPR')
+  copyright_re = re.compile(r'\[Copyright \d+ NPR\]')
   exclude = set(string.punctuation)
   exclude.add(u'\u2013') # endash
   exclude.add(u'\u2014') # emdash
@@ -73,6 +73,10 @@ class Story(object):
 
   def hasText(self):
     return len(self.text_) > 0
+
+  @staticmethod
+  def isCopyrightSentence(sentence):
+    return Story.copyright_re.match(sentence) != None
 
   @staticmethod
   def stripPunctuation(word):
