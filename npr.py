@@ -11,6 +11,9 @@ import itertools
 import json
 import multiprocessing
 import nltk.data
+import nltk.classify.util
+from nltk.classify import NaiveBayesClassifier
+from nltk.corpus import movie_reviews
 from operator import attrgetter
 import re
 import signal
@@ -610,6 +613,33 @@ class NPR(object):
         neg.add(n)
     print(pos)
     print(neg)
+
+  @staticmethod
+  def word_feats(words):
+    return dict([(word, True) for word in words])
+
+  def newSentimentClassifier(self):
+    negids = movie_reviews.fileids('neg')
+    posids = movie_reviews.fileids('pos')
+
+    negfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'neg') for f in negids]
+    posfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'pos') for f in posids]
+
+    negcutoff = len(negfeats)*3/4
+    poscutoff = len(posfeats)*3/4
+
+    trainfeats = negfeats[:negcutoff] + posfeats[:poscutoff]
+    print('Training on', len(trainfeats), 'instances...')
+
+    classifier = NaiveBayesClassifier.train(trainfeats)
+    testfeats = negfeats[negcutoff:] + posfeats[poscutoff:]
+    print('Testing on', len(testfeats), 'instances, accuracy:',
+           nltk.classify.util.accuracy(classifier, testfeats))
+    classifier.show_most_informative_features()
+    return classifier
+
+  def analyzeSentiments(self):
+    classifier = self.newSentimentClassifier()
 
 if __name__ == '__main__':
   try:
