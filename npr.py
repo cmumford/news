@@ -14,6 +14,7 @@ import nltk.data
 import nltk.classify.util
 from nltk.classify import NaiveBayesClassifier
 from nltk.corpus import movie_reviews
+import nltk.data
 from operator import attrgetter
 import re
 import signal
@@ -638,8 +639,33 @@ class NPR(object):
     classifier.show_most_informative_features()
     return classifier
 
+  @staticmethod
+  def extract_features(document):
+    document_words = set(document)
+    features = {}
+    for word in movie_reviews.words():
+      features['contains(%s)' % word] = (word in document_words)
+    return features
+
   def analyzeSentiments(self):
+    tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
     classifier = self.newSentimentClassifier()
+    mother_re = re.compile(r'.*\bmother\b.*')
+    father_re = re.compile(r'.*\bfather\b.*')
+    for story in StoryReader(self, glob.glob('stories/*.xml')):
+      for para in story.text_:
+        for sentence in tokenizer.tokenize(para):
+          if Story.isCopyrightSentence(sentence):
+            continue
+          sentence = sentence.lower()
+          is_mother = mother_re.match(sentence) != None
+          is_father = father_re.match(sentence) != None
+          if is_mother or is_father:
+            cl = classifier.classify(NPR.extract_features(sentence.lower().split()))
+            if is_mother:
+              print 'Mother:', cl, sentence
+            if is_father:
+              print 'Father:', cl, sentence
 
 if __name__ == '__main__':
   try:
