@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import with_statement
 import copy
 import csv
 import datetime
@@ -152,7 +153,7 @@ class StoryReader(object):
     self.npr = npr
     self.files_to_read = file_names
     self.stories = []
-    self.lock = thread.allocate_lock()
+    self.lock = threading.Lock()
     self.t = threading.Thread(target=self.threadReadFunc)
     self.t.start()
 
@@ -169,13 +170,9 @@ class StoryReader(object):
     while keep_running:
       file_name = None
       try:
-        self.lock.acquire()
-        file_name = self.files_to_read.pop()
+        with self.lock:
+          file_name = self.files_to_read.pop()
       except IndexError:
-        pass
-      finally:
-        self.lock.release()
-      if not file_name:
         break
       stories = self.npr.loadStoriesFromFile(file_name)
 
@@ -190,21 +187,16 @@ class StoryReader(object):
             (file_name, percent, files_per_sec, remaining_secs)
         next_print_time = now + print_delay
 
-      try:
-        self.lock.acquire()
+      with self.lock:
         self.stories.extend(stories)
-      finally:
-        self.lock.release()
 
   def next(self):
     try:
-      self.lock.acquire()
-      num_files_left = len(self.files_to_read)
-      story = self.stories.pop()
+      with self.lock:
+        num_files_left = len(self.files_to_read)
+        story = self.stories.pop()
     except IndexError:
       story = None
-    finally:
-      self.lock.release()
 
     if story:
       return story
@@ -217,12 +209,10 @@ class StoryReader(object):
     while not story:
       time.sleep(StoryReader.sleepSecs)
       try:
-        self.lock.acquire()
-        story = self.stories.pop()
+        with self.lock:
+          story = self.stories.pop()
       except IndexError:
         pass
-      finally:
-        self.lock.release()
     return story
 
 class GenderOptions(object):
