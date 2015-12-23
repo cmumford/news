@@ -662,10 +662,86 @@ class NPR(object):
           is_father = father_re.match(sentence) != None
           if is_mother or is_father:
             cl = classifier.classify(NPR.extract_features(sentence.lower().split()))
-            if is_mother:
-              print 'Mother:', cl, sentence
-            if is_father:
-              print 'Father:', cl, sentence
+            if cl == 'neg':
+              if is_mother:
+                print 'Mother:', cl, sentence
+              if is_father:
+                print 'Father:', cl, sentence
+
+  def analyzeWords(self):
+    tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+    pos_words = {
+      r'\baccepting\b': 0,
+      r'\bapproval\b': 0,
+      r'\bcheerful\b': 0,
+      r'\bdevoted\b': 0,
+      r'\bfunny\b': 0,
+      r'\bgenerous\b': 0,
+      r'\bgregarious\b': 0,
+      r'\bhappy\b': 0,
+      r'\bkind\b': 0,
+      r'\bgood\b': 0,
+      r'\bkindness\b': 0,
+      r'\bliked?\b': 0,
+      r'\bloved?\b': 0,
+      r'\bloving\b': 0,
+      r'\bromantic\b': 0,
+      r'\bsacrificed?\b': 0,
+      r'\bwarm\b': 0,
+    }
+    neg_words = {
+      r'\bawful\b': 0,
+      r'\bbad\b': 0,
+      r'\bcoward\b': 0,
+      r'\bcruel\b': 0,
+      r'\bdeadbeat\b': 0,
+      r'\bdisapproval\b': 0,
+      r'\bdisapproving\b': 0,
+      r'\bdisliked?\b': 0,
+      r'\bhated?\b': 0,
+      r'\bhit\b': 0,
+      r'\bjail\b': 0,
+      r'\bjailed\b': 0,
+      r'\bsad\b': 0,
+      r'\bstopped\b': 0,
+      r'\bviolent\b': 0,
+    }
+    pos_res = {w: re.compile(w) for w in pos_words}
+    neg_res = {w: re.compile(w) for w in neg_words}
+
+    male_counts = {
+      'neg': copy.deepcopy(neg_words),
+      'pos': copy.deepcopy(pos_words)
+    }
+
+    female_counts = copy.deepcopy(male_counts)
+
+    mother_re = re.compile(r'.*\bwomen\b.*')
+    father_re = re.compile(r'.*\bmen\b.*')
+    for story in StoryReader(self, glob.glob('stories/*.xml')):
+      for para in story.text_:
+        for sentence in tokenizer.tokenize(para):
+          if Story.isCopyrightSentence(sentence):
+            continue
+          sentence = sentence.lower()
+          if NPR.matchesAnyRegEx(sentence, NPR.female_options.all_res):
+            for word in female_counts['pos']:
+              female_counts['pos'][word] += len(pos_res[word].findall(sentence))
+            for word in female_counts['neg']:
+              female_counts['neg'][word] += len(neg_res[word].findall(sentence))
+          if NPR.matchesAnyRegEx(sentence, NPR.male_options.all_res):
+            for word in male_counts['pos']:
+              male_counts['pos'][word] += len(pos_res[word].findall(sentence))
+            for word in male_counts['neg']:
+              male_counts['neg'][word] += len(neg_res[word].findall(sentence))
+
+    print 'Word,Female,Male'
+    print 'Positive'
+    for word in female_counts['pos']:
+      print '%s,%d,%d' % (word, female_counts['pos'][word], male_counts['pos'][word])
+    print 'Negative'
+    for word in female_counts['neg']:
+      print '%s,%d,%d' % (word, female_counts['neg'][word], male_counts['neg'][word])
 
 if __name__ == '__main__':
   try:
