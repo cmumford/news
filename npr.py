@@ -378,7 +378,7 @@ class NPR(object):
   @staticmethod
   def printDictAsCSV(d, fname):
     the_dict = {tag.title_: d[tag] for tag in d}
-    with open(fname, 'wb') as f:
+    with open(fname, 'w') as f:
       w = csv.DictWriter(f, the_dict)
       w.writeheader()
       w.writerow(the_dict)
