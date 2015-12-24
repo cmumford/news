@@ -784,6 +784,22 @@ class NPR(object):
     print 'Female positive:', female_positive_count, 'negative:', female_negative_count
     print 'Male positive:', male_positive_count, 'negative:', male_negative_count
 
+  def countAttribute(self, attr_name):
+    counter = GenderCounter(attr_name)
+    for story in StoryReader(self, glob.glob('stories/*.xml')):
+      attr = getattr(story, attr_name)
+      if not attr:
+        continue
+      attr = attr.lower()
+      male_count = 0
+      female_count = 0
+      for reg in NPR.male_options.all_res.values():
+        male_count += len(reg.findall(attr))
+      for reg in NPR.female_options.all_res.values():
+        female_count += len(reg.findall(attr))
+      counter.increment(female_count, male_count)
+    print counter
+
 if __name__ == '__main__':
   try:
     api_key = open('key.txt').read().strip()
