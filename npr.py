@@ -65,6 +65,7 @@ class Story(object):
   def __init__(self, id):
     self.id_ = id
     self.title_ = ''
+    self.teaser_ = ''
     self.date_ = None
     self.tags_ = []
     self.text_ = []
@@ -311,6 +312,7 @@ class NPR(object):
     for xml_story in root.findall('list/story'):
       story = Story(int(xml_story.get('id')))
       story.title_ = xml_story.find('title').text
+      story.teaser_ = xml_story.find('teaser').text
       story.date_ = dateutil.parser.parse(xml_story.find('storyDate').text)
       stories.append(story)
       for parent in xml_story.findall("parent[@type='tag']"):
