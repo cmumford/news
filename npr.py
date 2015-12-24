@@ -82,6 +82,14 @@ class Story(object):
   def stripPunctuation(word):
     return word.strip(Story.excludeStr)
 
+  @staticmethod
+  def extractWords(sentence):
+    words = []
+    for word in sentence.split():
+      word.strip()
+      words.append(Story.stripPunctuation(word))
+    return words
+
   # Strip out punctuation, and return all story text suitable for analysis.
   def rawText(self):
     words = []
