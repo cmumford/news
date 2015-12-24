@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-from __future__ import with_statement
+import codecs
 import copy
 import csv
 import datetime
@@ -13,7 +13,6 @@ import re
 import signal
 import string
 import sys
-import thread
 import threading
 import time
 import urllib
@@ -27,7 +26,7 @@ import xml.etree.cElementTree as ET
 keep_running = True
 
 def handler(signum, frame):
-  print 'Signal handler called with signal %s' % signum
+  print('Signal handler called with signal', signum)
   global keep_running
   if signum == signal.SIGINT:
     keep_running = False
@@ -49,11 +48,8 @@ class Tag(object):
     self.title_ = title
     self.additionalInfo_ = additionalInfo
 
-  def __unicode__(self):
-    return 'id:%d, num:%d, "%s"' % (self.id_, self.num_, self.title_)
-
   def __str__(self):
-    return unicode(self).encode('utf-8')
+    return 'id:%d, num:%d, "%s"' % (self.id_, self.num_, self.title_)
 
 class Story(object):
   copyright_re = re.compile(r'\[Copyright \d+ NPR\]')
@@ -184,14 +180,15 @@ class StoryReader(object):
         files_per_sec = num_files_read / elapsed.total_seconds()
         percent = num_files_read * 100.0 / num_files
         remaining_secs = (num_files - num_files_read) / files_per_sec
-        print >> sys.stderr,  '%s: %.1f%%, fps:%.1f, remaining:%ds' % \
-            (file_name, percent, files_per_sec, remaining_secs)
+        print('%s: %.1f%%, fps:%.1f, remaining:%ds' % \
+              (file_name, percent, files_per_sec, remaining_secs),
+              file=sys.stderr)
         next_print_time = now + print_delay
 
       with self.lock:
         self.stories.extend(stories)
 
-  def next(self):
+  def __next__(self):
     try:
       with self.lock:
         num_files_left = len(self.files_to_read)
@@ -295,7 +292,7 @@ class NPR(object):
     total_stories = 0
     while story_count:
       url = self.getUrl(params)
-      print url
+      print(url)
       f = urllib.urlopen(url)
       xml_response = f.read()
       with open('stories/startNum_%d.xml' % params['startNum'], 'w') as f:
@@ -303,7 +300,7 @@ class NPR(object):
       root = ET.fromstring(xml_response)
       story_count = len(root.findall('list/story'))
       total_stories += story_count
-      print 'there are', story_count, 'stories. So far:', total_stories
+      print('there are', story_count, 'stories. So far:', total_stories)
       params['startNum'] = params['startNum'] + story_count
 
   def loadStoriesFromFile(self, file_name):
@@ -354,7 +351,7 @@ class NPR(object):
       if story.hasATag(combined_tags):
         matching_stories.append(story)
 
-    print 'There are', len(matching_stories), 'matching stories'
+    print('There are', len(matching_stories), 'matching stories')
     npr.writeStoriesToXml(matching_stories)
 
   @staticmethod
@@ -397,8 +394,8 @@ class NPR(object):
       w.writerow(the_dict)
 
   def printTags(self, title, stories, tags):
-    print '%s tags' % title
-    print '========='
+    print('%s tags' % title)
+    print('=========')
     counts = {}
     for story in stories:
       for tag in story.tags_:
@@ -410,19 +407,19 @@ class NPR(object):
     for tag in sorted(tags, key=attrgetter('title_')):
       count = counts[tag] if tag in counts else 0
       total += count
-      print '%s:%d' % (tag.title_, count)
-    print '---------'
-    print 'Total:%d' % total
+      print('%s:%d' % (tag.title_, count))
+    print('---------')
+    print('Total:%d' % total)
 
   def printAllTags(self, stories):
-    print
+    print()
     self.printTags('Female', stories, NPR.female_options.all_tags)
-    print
+    print()
     self.printTags('Male', stories, NPR.male_options.all_tags)
 
   def analyzeMatchingStories(self):
     matching_stories = self.loadStoriesFromFile('matching.xml')
-    print 'Analyzing', len(matching_stories), 'matching stories'
+    print('Analyzing', len(matching_stories), 'matching stories')
 
     for year in range(2010, 2016):
       stories = []
@@ -457,9 +454,9 @@ class NPR(object):
       NPR.printDictAsCSV(counts, 'analysis_boys.csv')
       male.addYouth(counts)
 
-      print year
-      print female.asCsv()
-      print male.asCsv()
+      print(year)
+      print(female.asCsv())
+      print(male.asCsv())
 
   def countGenders(self):
     female_counts = {}
@@ -476,24 +473,24 @@ class NPR(object):
       for reg in self.male_options.all_res:
         male_counts[reg] += len(self.male_options.all_res[reg].findall(story_text))
 
-    print 'Female counts:'
-    print '=============='
+    print('Female counts:')
+    print('==============')
     total = 0
     for reg in female_counts:
-      print '%s: %d' % (reg, female_counts[reg])
+      print('%s: %d' % (reg, female_counts[reg]))
       total += female_counts[reg]
-    print '--------------'
-    print 'Total:', total
+    print('--------------')
+    print('Total:', total)
 
-    print
-    print 'Male counts:'
-    print '============'
+    print()
+    print('Male counts:')
+    print('============')
     total = 0
     for reg in male_counts:
-      print '%s: %d' % (reg, male_counts[reg])
+      print('%s: %d' % (reg, male_counts[reg]))
       total += male_counts[reg]
-    print '--------------'
-    print 'Total:', total
+    print('--------------')
+    print('Total:', total)
 
 if __name__ == '__main__':
   try:
