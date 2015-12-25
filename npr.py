@@ -492,6 +492,16 @@ class NPR(object):
     print('--------------')
     print('Total:', total)
 
+  @staticmethod
+  def readWordList(fname):
+    words = set()
+    with codecs.open(fname, 'r', 'iso-8859-1') as f:
+      for line in f.readlines():
+        line = line.strip()
+        if not line.startswith('#'):
+          words.add(line)
+    return words
+
 if __name__ == '__main__':
   try:
     api_key = open('key.txt').read().strip()
