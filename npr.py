@@ -342,7 +342,9 @@ class NPR(object):
     for xml_story in root.findall('list/story'):
       story = Story(int(xml_story.get('id')))
       story.title_ = xml_story.find('title').text
-      story.teaser_ = xml_story.find('teaser').text
+      xml_teaser = xml_story.find('teaser')
+      if xml_teaser:
+        story.teaser_ = xml_teaser.text
       story.date_ = dateutil.parser.parse(xml_story.find('storyDate').text)
       stories.append(story)
       for parent in xml_story.findall("parent[@type='tag']"):
