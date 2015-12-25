@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import codecs
+import concurrent.futures
 import copy
 import csv
 import datetime
@@ -8,6 +9,7 @@ import dateutil.parser
 import glob
 import itertools
 import json
+import nltk.data
 from operator import attrgetter
 import re
 import signal
@@ -529,6 +531,65 @@ class NPR(object):
         if not line.startswith('#'):
           words.add(line)
     return words
+
+  def countGenderSentiments(self):
+    class Counter(object):
+      def __init__(self):
+        self.tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+        self.positive_words = NPR.readWordList('positive-words.txt')
+        self.negative_words = NPR.readWordList('negative-words.txt')
+
+      def __call__(self, story):
+        pos_counts = GenderCounter('positive')
+        neg_counts = GenderCounter('negative')
+        for para in story.text_:
+          for sentence in self.tokenizer.tokenize(para):
+            if Story.isCopyrightSentence(sentence):
+              continue
+            sentence = sentence.lower()
+            sentence_words = Story.extractWords(sentence)
+            is_female = NPR.matchesAnyRegEx(sentence_words,
+                                            NPR.female_options.all_res)
+            is_male = NPR.matchesAnyRegEx(sentence_words,
+                                          NPR.male_options.all_res)
+            if is_female or is_male:
+              for word in sentence_words:
+                if word in self.positive_words:
+                  if is_male:
+                    pos_counts.male.count += 1
+                  if is_female:
+                    pos_counts.female.count += 1
+                if word in self.negative_words:
+                  if is_male:
+                    neg_counts.male.count += 1
+                  if is_female:
+                    neg_counts.female.count += 1
+        return (pos_counts, neg_counts)
+
+    counter = Counter()
+    pos = GenderCounter('positive')
+    neg = GenderCounter('negative')
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+      futures = [executor.submit(counter, story) for story in \
+                 StoryReader(self, glob.glob('stories/*.xml'))]
+      print_delay = datetime.timedelta(seconds=1)
+      next_print_time = datetime.datetime.now()
+      future_num = 0
+      for future in concurrent.futures.as_completed(futures):
+        if future.exception() is not None:
+          raise future.exception()
+        else:
+          (p, n) = future.result()
+          pos.add(p)
+          neg.add(n)
+        future_num += 1
+        now = datetime.datetime.now()
+        if now >= next_print_time:
+          progress = future_num * 100 / len(futures)
+          print('Progress: %.1f%%' % progress, file=sys.stderr)
+          next_print_time = now + print_delay
+    print(pos)
+    print(neg)
 
 if __name__ == '__main__':
   try:
