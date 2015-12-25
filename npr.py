@@ -365,6 +365,19 @@ class NPR(object):
     return False
 
   @staticmethod
+  def matchesAnyRegEx(sentence, regexes):
+    if type(sentence).__name__ == 'str':
+      for reg in regexes:
+        if regexes[reg].findall(sentence):
+          return True
+    else:
+      for word in sentence:
+        for reg in regexes:
+          if regexes[reg].match(word):
+            return True
+    return False
+
+  @staticmethod
   def calcTagCounts(stories, tags):
     totals = {}
     for tag in tags:
