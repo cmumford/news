@@ -669,79 +669,91 @@ class NPR(object):
                 print('Father:', cl, sentence)
 
   def analyzeWords(self):
-    tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-    pos_words = {
-      r'\baccepting\b': 0,
-      r'\bapproval\b': 0,
-      r'\bcheerful\b': 0,
-      r'\bdevoted\b': 0,
-      r'\bfunny\b': 0,
-      r'\bgenerous\b': 0,
-      r'\bgregarious\b': 0,
-      r'\bhappy\b': 0,
-      r'\bkind\b': 0,
-      r'\bgood\b': 0,
-      r'\bkindness\b': 0,
-      r'\bliked?\b': 0,
-      r'\bloved?\b': 0,
-      r'\bloving\b': 0,
-      r'\bromantic\b': 0,
-      r'\bsacrificed?\b': 0,
-      r'\bwarm\b': 0,
-    }
-    neg_words = {
-      r'\bawful\b': 0,
-      r'\bbad\b': 0,
-      r'\bcoward\b': 0,
-      r'\bcruel\b': 0,
-      r'\bdeadbeat\b': 0,
-      r'\bdisapproval\b': 0,
-      r'\bdisapproving\b': 0,
-      r'\bdisliked?\b': 0,
-      r'\bhated?\b': 0,
-      r'\bhit\b': 0,
-      r'\bjail\b': 0,
-      r'\bjailed\b': 0,
-      r'\bsad\b': 0,
-      r'\bstopped\b': 0,
-      r'\bviolent\b': 0,
-    }
-    pos_res = {w: re.compile(w) for w in pos_words}
-    neg_res = {w: re.compile(w) for w in neg_words}
+    class Counter(object):
+      def __init__(self):
+        self.tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+        self.pos_words = {
+          r'\baccepting\b': 0,
+          r'\bapproval\b': 0,
+          r'\bcheerful\b': 0,
+          r'\bdevoted\b': 0,
+          r'\bfunny\b': 0,
+          r'\bgenerous\b': 0,
+          r'\bgregarious\b': 0,
+          r'\bhappy\b': 0,
+          r'\bkind\b': 0,
+          r'\bgood\b': 0,
+          r'\bkindness\b': 0,
+          r'\bliked?\b': 0,
+          r'\bloved?\b': 0,
+          r'\bloving\b': 0,
+          r'\bromantic\b': 0,
+          r'\bsacrificed?\b': 0,
+          r'\bwarm\b': 0,
+        }
+        self.neg_words = {
+          r'\bawful\b': 0,
+          r'\bbad\b': 0,
+          r'\bcoward\b': 0,
+          r'\bcruel\b': 0,
+          r'\bdeadbeat\b': 0,
+          r'\bdisapproval\b': 0,
+          r'\bdisapproving\b': 0,
+          r'\bdisliked?\b': 0,
+          r'\bhated?\b': 0,
+          r'\bhit\b': 0,
+          r'\bjail\b': 0,
+          r'\bjailed\b': 0,
+          r'\bsad\b': 0,
+          r'\bstopped\b': 0,
+          r'\bviolent\b': 0,
+        }
+        self.pos_res = {w: re.compile(w) for w in self.pos_words}
+        self.neg_res = {w: re.compile(w) for w in self.neg_words}
 
-    male_counts = {
-      'neg': copy.deepcopy(neg_words),
-      'pos': copy.deepcopy(pos_words)
-    }
-
-    female_counts = copy.deepcopy(male_counts)
-
-    mother_re = re.compile(r'.*\bwomen\b.*')
-    father_re = re.compile(r'.*\bmen\b.*')
-    for story in StoryReader(self, glob.glob('stories/*.xml')):
-      for para in story.text_:
-        for sentence in tokenizer.tokenize(para):
-          if Story.isCopyrightSentence(sentence):
+      def __call__(self, story):
+        pos_counts = GenderCounter('positive')
+        neg_counts = GenderCounter('negative')
+        for paragraph in story.text_:
+          if Story.isCopyrightSentence(paragraph):
             continue
-          sentence = sentence.lower()
-          if NPR.matchesAnyRegEx(sentence, NPR.female_options.all_res):
-            for word in female_counts['pos']:
-              female_counts['pos'][word] += len(pos_res[word].findall(sentence))
-            for word in female_counts['neg']:
-              female_counts['neg'][word] += len(neg_res[word].findall(sentence))
-          if NPR.matchesAnyRegEx(sentence, NPR.male_options.all_res):
-            for word in male_counts['pos']:
-              male_counts['pos'][word] += len(pos_res[word].findall(sentence))
-            for word in male_counts['neg']:
-              male_counts['neg'][word] += len(neg_res[word].findall(sentence))
+          for sentence in self.tokenizer.tokenize(paragraph):
+            sentence = sentence.lower()
+            if NPR.matchesAnyRegEx(sentence, NPR.female_options.all_res):
+              for word in self.pos_words:
+                pos_counts.female.count += len(self.pos_res[word].findall(sentence))
+              for word in self.neg_words:
+                neg_counts.female.count += len(self.neg_res[word].findall(sentence))
+            if NPR.matchesAnyRegEx(sentence, NPR.male_options.all_res):
+              for word in self.pos_words:
+                pos_counts.male.count += len(self.pos_res[word].findall(sentence))
+              for word in self.neg_words:
+                neg_counts.male.count += len(self.neg_res[word].findall(sentence))
+        return (pos_counts, neg_counts)
 
-    print('Word,Female,Male')
-    print('Positive')
-    for word in female_counts['pos']:
-      print('%s,%d,%d' % (word, female_counts['pos'][word], male_counts['pos'][word]))
-    print('Negative')
-    for word in female_counts['neg']:
-      print('%s,%d,%d' % (word, female_counts['neg'][word], male_counts['neg'][word]))
+    counter = Counter()
+    pos = GenderCounter('positive')
+    neg = GenderCounter('negative')
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+      print_delay = datetime.timedelta(seconds=1)
+      next_print_time = datetime.datetime.now()
+      future_num = 0
+      for future in concurrent.futures.as_completed(
+          [executor.submit(counter, story) for story in \
+                 StoryReader(self, glob.glob('stories/*.xml'))]):
+        if future.exception() is not None:
+          raise future.exception()
+        else:
+          (p, n) = future.result()
+          pos.add(p)
+          neg.add(n)
+        future_num += 1
+        now = datetime.datetime.now()
+        if now >= next_print_time:
+          print('Progress: %d' % future_num, file=sys.stderr)
+          next_print_time = now + print_delay
+    print(pos)
+    print(neg)
 
   @staticmethod
   def readWordList(fname):
