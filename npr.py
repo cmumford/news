@@ -664,9 +664,9 @@ class NPR(object):
             cl = classifier.classify(NPR.extract_features(sentence.lower().split()))
             if cl == 'neg':
               if is_mother:
-                print 'Mother:', cl, sentence
+                print('Mother:', cl, sentence)
               if is_father:
-                print 'Father:', cl, sentence
+                print('Father:', cl, sentence)
 
   def analyzeWords(self):
     tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
@@ -735,13 +735,13 @@ class NPR(object):
             for word in male_counts['neg']:
               male_counts['neg'][word] += len(neg_res[word].findall(sentence))
 
-    print 'Word,Female,Male'
-    print 'Positive'
+    print('Word,Female,Male')
+    print('Positive')
     for word in female_counts['pos']:
-      print '%s,%d,%d' % (word, female_counts['pos'][word], male_counts['pos'][word])
-    print 'Negative'
+      print('%s,%d,%d' % (word, female_counts['pos'][word], male_counts['pos'][word]))
+    print('Negative')
     for word in female_counts['neg']:
-      print '%s,%d,%d' % (word, female_counts['neg'][word], male_counts['neg'][word])
+      print('%s,%d,%d' % (word, female_counts['neg'][word], male_counts['neg'][word]))
 
   @staticmethod
   def readWordList(fname):
@@ -767,8 +767,10 @@ class NPR(object):
             continue
           sentence = sentence.lower()
           sentence_words = Story.extractWords(sentence)
-          is_female = NPR.matchesAnyRegEx(sentence_words, NPR.female_options.all_res)
-          is_male = NPR.matchesAnyRegEx(sentence_words, NPR.male_options.all_res)
+          is_female = NPR.matchesAnyRegEx(sentence_words,
+                                          NPR.female_options.all_res)
+          is_male = NPR.matchesAnyRegEx(sentence_words,
+                                        NPR.male_options.all_res)
           if is_female or is_male:
             for word in sentence_words:
               if word in positive_words:
@@ -781,8 +783,10 @@ class NPR(object):
                   male_negative_count += 1
                 if is_female:
                   female_negative_count += 1
-    print 'Female positive:', female_positive_count, 'negative:', female_negative_count
-    print 'Male positive:', male_positive_count, 'negative:', male_negative_count
+    print('Female positive:', female_positive_count, 'negative:',
+          female_negative_count)
+    print('Male positive:', male_positive_count, 'negative:',
+          male_negative_count)
 
   def countAttribute(self, attr_name):
     counter = GenderCounter(attr_name)
@@ -798,7 +802,7 @@ class NPR(object):
       for reg in NPR.female_options.all_res.values():
         female_count += len(reg.findall(attr))
       counter.increment(female_count, male_count)
-    print counter
+    print(counter)
 
 if __name__ == '__main__':
   try:
