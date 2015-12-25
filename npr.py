@@ -258,6 +258,34 @@ def loadTags():
                     item.find('additionalInfo').text))
   return tags
 
+class NamedCounter(object):
+  def __init__(self, name):
+    self.name = name
+    self.count = 0
+
+  def increment(self, amount):
+    self.count += amount
+
+  def __str__(self):
+    return '%s:%d' % (self.name, self.count)
+
+class GenderCounter(object):
+  def __init__(self, title):
+    self.title = title
+    self.female = NamedCounter('female')
+    self.male = NamedCounter('male')
+
+  def increment(self, female_amount, male_amount):
+    self.female.increment(female_amount)
+    self.male.increment(male_amount)
+
+  def add(self, counter):
+    self.female.increment(counter.female.count)
+    self.male.increment(counter.male.count)
+
+  def __str__(self):
+    return '%s %s %s' % (self.title, self.female, self.male)
+
 class NPR(object):
   baseUrl = 'http://api.npr.org/query?'
   ignore_tag_ids = [
