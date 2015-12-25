@@ -191,6 +191,7 @@ class StoryReader(object):
         self.stories.extend(stories)
 
   def __next__(self):
+    global keep_running
     try:
       with self.lock:
         num_files_left = len(self.files_to_read)
@@ -208,6 +209,8 @@ class StoryReader(object):
     # more stories to be added.
     while not story:
       time.sleep(StoryReader.sleepSecs)
+      if not keep_running:
+        raise StopIteration
       try:
         with self.lock:
           story = self.stories.pop()
