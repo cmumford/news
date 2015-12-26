@@ -14,6 +14,7 @@ import nltk.data
 import nltk.classify.util
 from nltk.classify import NaiveBayesClassifier
 from nltk.corpus import movie_reviews
+from nltk.corpus import stopwords
 import nltk.data
 from operator import attrgetter
 import re
@@ -329,10 +330,10 @@ class GenderSentimentCounter(object):
             continue
           sentence = sentence.lower()
           sentence_words = Story.extractWords(sentence)
-          is_female = NPR.matchesAnyRegEx(sentence_words,
-                                          NPR.female_options.all_res)
-          is_male = NPR.matchesAnyRegEx(sentence_words,
-                                        NPR.male_options.all_res)
+          is_female = NPR.matchRegExes(sentence_words,
+                                       NPR.female_options.all_res)
+          is_male = NPR.matchRegExes(sentence_words,
+                                     NPR.male_options.all_res)
           if is_female or is_male:
             for word in sentence_words:
               if word in self.positive_words:
@@ -456,17 +457,22 @@ class NPR(object):
     return False
 
   @staticmethod
-  def matchesAnyRegEx(sentence, regexes):
+  def matchRegExes(sentence, regexes, count_all=False):
+    count = 0
     if type(sentence).__name__ == 'str':
       for reg in regexes:
         if regexes[reg].findall(sentence):
-          return True
+          count += 1
+          if not count_all:
+            break
     else:
       for word in sentence:
         for reg in regexes:
           if regexes[reg].match(word):
-            return True
-    return False
+            count += 1
+            if not count_all:
+              break
+    return count
 
   @staticmethod
   def calcTagCounts(stories, tags):
@@ -671,45 +677,12 @@ class NPR(object):
   def analyzeWords(self):
     class Counter(object):
       def __init__(self):
+        self.stop = stopwords.words('english')
         self.tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-        self.pos_words = {
-          r'\baccepting\b': 0,
-          r'\bapproval\b': 0,
-          r'\bcheerful\b': 0,
-          r'\bdevoted\b': 0,
-          r'\bfunny\b': 0,
-          r'\bgenerous\b': 0,
-          r'\bgregarious\b': 0,
-          r'\bhappy\b': 0,
-          r'\bkind\b': 0,
-          r'\bgood\b': 0,
-          r'\bkindness\b': 0,
-          r'\bliked?\b': 0,
-          r'\bloved?\b': 0,
-          r'\bloving\b': 0,
-          r'\bromantic\b': 0,
-          r'\bsacrificed?\b': 0,
-          r'\bwarm\b': 0,
-        }
-        self.neg_words = {
-          r'\bawful\b': 0,
-          r'\bbad\b': 0,
-          r'\bcoward\b': 0,
-          r'\bcruel\b': 0,
-          r'\bdeadbeat\b': 0,
-          r'\bdisapproval\b': 0,
-          r'\bdisapproving\b': 0,
-          r'\bdisliked?\b': 0,
-          r'\bhated?\b': 0,
-          r'\bhit\b': 0,
-          r'\bjail\b': 0,
-          r'\bjailed\b': 0,
-          r'\bsad\b': 0,
-          r'\bstopped\b': 0,
-          r'\bviolent\b': 0,
-        }
-        self.pos_res = {w: re.compile(w) for w in self.pos_words}
-        self.neg_res = {w: re.compile(w) for w in self.neg_words}
+        pos_words = NPR.readWordList('pos_emotional_words.txt')
+        neg_words = NPR.readWordList('neg_emotional_words.txt')
+        self.pos_res = {w: re.compile(w) for w in pos_words}
+        self.neg_res = {w: re.compile(w) for w in neg_words}
 
       def __call__(self, story):
         pos_counts = GenderCounter('positive')
@@ -719,16 +692,20 @@ class NPR(object):
             continue
           for sentence in self.tokenizer.tokenize(paragraph):
             sentence = sentence.lower()
-            if NPR.matchesAnyRegEx(sentence, NPR.female_options.all_res):
-              for word in self.pos_words:
-                pos_counts.female.count += len(self.pos_res[word].findall(sentence))
-              for word in self.neg_words:
-                neg_counts.female.count += len(self.neg_res[word].findall(sentence))
-            if NPR.matchesAnyRegEx(sentence, NPR.male_options.all_res):
-              for word in self.pos_words:
-                pos_counts.male.count += len(self.pos_res[word].findall(sentence))
-              for word in self.neg_words:
-                neg_counts.male.count += len(self.neg_res[word].findall(sentence))
+            sentence = [w for w in sentence.split() if w not in self.stop]
+            pos_count = None
+            neg_count = None
+            if NPR.matchRegExes(sentence, NPR.female_options.all_res):
+              pos_count = NPR.matchRegExes(sentence, self.pos_res, True)
+              neg_count = NPR.matchRegExes(sentence, self.neg_res, True)
+              pos_counts.female.count += pos_count
+              neg_counts.female.count += neg_count
+            if NPR.matchRegExes(sentence, NPR.male_options.all_res):
+              if pos_count == None:
+                pos_count = NPR.matchRegExes(sentence, self.pos_res, True)
+                neg_count = NPR.matchRegExes(sentence, self.neg_res, True)
+              pos_counts.male.count += pos_count
+              neg_counts.male.count += neg_count
         return (pos_counts, neg_counts)
 
     counter = Counter()
@@ -760,8 +737,9 @@ class NPR(object):
     words = set()
     with open(fname) as f:
       for line in f.readlines():
-        if not line.startswith('#'):
-          words.add(line.strip())
+        items = line.split()
+        if len(items) and not items[0].startswith('#'):
+          words.add(items[0])
     return words
 
   def analyzeWords2(self):
@@ -779,10 +757,9 @@ class NPR(object):
             continue
           sentence = sentence.lower()
           sentence_words = Story.extractWords(sentence)
-          is_female = NPR.matchesAnyRegEx(sentence_words,
-                                          NPR.female_options.all_res)
-          is_male = NPR.matchesAnyRegEx(sentence_words,
-                                        NPR.male_options.all_res)
+          is_female = NPR.matchRegExes(sentence_words,
+                                       NPR.female_options.all_res)
+          is_male = NPR.matchRegExes(sentence_words, NPR.male_options.all_res)
           if is_female or is_male:
             for word in sentence_words:
               if word in positive_words:
