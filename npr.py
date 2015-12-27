@@ -632,8 +632,8 @@ class NPR(object):
     negfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'neg') for f in negids]
     posfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'pos') for f in posids]
 
-    negcutoff = len(negfeats)*3/4
-    poscutoff = len(posfeats)*3/4
+    negcutoff = int(len(negfeats)*3/4)
+    poscutoff = int(len(posfeats)*3/4)
 
     trainfeats = negfeats[:negcutoff] + posfeats[:poscutoff]
     print('Training on', len(trainfeats), 'instances...')
