@@ -625,26 +625,6 @@ class NPR(object):
   def word_feats(words):
     return dict([(word, True) for word in words])
 
-  def newSentimentClassifier(self):
-    negids = movie_reviews.fileids('neg')
-    posids = movie_reviews.fileids('pos')
-
-    negfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'neg') for f in negids]
-    posfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'pos') for f in posids]
-
-    negcutoff = int(len(negfeats)*3/4)
-    poscutoff = int(len(posfeats)*3/4)
-
-    trainfeats = negfeats[:negcutoff] + posfeats[:poscutoff]
-    print('Training on', len(trainfeats), 'instances...')
-
-    classifier = NaiveBayesClassifier.train(trainfeats)
-    testfeats = negfeats[negcutoff:] + posfeats[poscutoff:]
-    print('Testing on', len(testfeats), 'instances, accuracy:',
-           nltk.classify.util.accuracy(classifier, testfeats))
-    classifier.show_most_informative_features()
-    return classifier
-
   @staticmethod
   def extract_features(document):
     document_words = set(document)
@@ -654,25 +634,67 @@ class NPR(object):
     return features
 
   def analyzeSentiments(self):
+
+    class Analyzer(object):
+      def __init__(self):
+        self.progress = ProgressPrinter('StorySentimentAnalyzer', 0)
+        self.classifier = self.newSentimentClassifier()
+
+      def newSentimentClassifier(self):
+        negids = movie_reviews.fileids('neg')
+        posids = movie_reviews.fileids('pos')
+
+        negfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'neg') for f in negids]
+        posfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'pos') for f in posids]
+
+        negcutoff = int(len(negfeats)*3/4)
+        poscutoff = int(len(posfeats)*3/4)
+
+        trainfeats = negfeats[:negcutoff] + posfeats[:poscutoff]
+        print('Training on', len(trainfeats), 'instances...')
+
+        classifier = NaiveBayesClassifier.train(trainfeats)
+        testfeats = negfeats[negcutoff:] + posfeats[poscutoff:]
+        print('Testing on', len(testfeats), 'instances, accuracy:',
+               nltk.classify.util.accuracy(classifier, testfeats))
+        classifier.show_most_informative_features()
+        return classifier
+
+      def __call__(self, story):
+        self.progress.increment()
+        pos_counter = GenderCounter('positive')
+        neg_counter = GenderCounter('negative')
+
+        for paragraph in story.text_:
+          if Story.isCopyrightSentence(paragraph):
+            continue
+          for sentence in tokenizer.tokenize(paragraph):
+            sentence_words = Story.extractWords(sentence.lower())
+            is_female = NPR.matchRegExes(sentence_words, NPR.female_options.all_res)
+            is_male = NPR.matchRegExes(sentence_words, NPR.male_options.all_res)
+            if is_female or is_male:
+              cl = self.classifier.classify(NPR.extract_features(sentence_words))
+              if cl == 'pos':
+                pos_counter.increment(int(is_female), int(is_male))
+              if cl == 'neg':
+                neg_counter.increment(int(is_female), int(is_male))
+        return (pos_counter, neg_counter)
+
+    analyzer = Analyzer()
     tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-    classifier = self.newSentimentClassifier()
-    for story in StoryReader(self, glob.glob('stories/*.xml')):
-      for paragraph in story.text_:
-        if Story.isCopyrightSentence(paragraph):
-          continue
-        for sentence in tokenizer.tokenize(paragraph):
-          sentence = sentence.lower()
-          sentence_words = Story.extractWords(sentence)
-          is_female = NPR.matchRegExes(sentence_words,
-                                       NPR.female_options.all_res)
-          is_male = NPR.matchRegExes(sentence_words, NPR.male_options.all_res)
-          if is_female or is_male:
-            cl = classifier.classify(NPR.extract_features(sentence_words))
-            if cl != 'pos':
-              if is_female:
-                print('Female:', cl, sentence)
-              if is_male:
-                print('Male:', cl, sentence)
+    futures = []
+    pos_counter = GenderCounter('positive')
+    neg_counter = GenderCounter('negative')
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_cpus) as executor:
+      for story in StoryReader(self, glob.glob('stories/*.xml')):
+        futures.append(executor.submit(analyzer, story))
+      for future in concurrent.futures.as_completed(futures):
+        if future.exception() is not None:
+          raise future.exception()
+        (pos, neg) = future.result()
+        pos_counter.add(pos)
+        neg_counter.add(neg)
+    print('%s, %s' %(pos_counter, neg_counter))
 
   def analyzeWords(self):
     class Counter(object):
