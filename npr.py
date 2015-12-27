@@ -231,8 +231,8 @@ class StoryReader(object):
       try:
         with self.lock:
           story = self.stories.pop()
-          if story:
-            return story
+          assert story
+          return story
       except IndexError:
         if not self.t.isAlive():
           if self.thread_exception:
