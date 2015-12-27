@@ -155,68 +155,73 @@ class StoryReader(object):
     self.lock = threading.Lock()
     self.t = threading.Thread(target=self.threadReadFunc)
     self.t.start()
+    self.thread_exception = None
 
   def __iter__(self):
     return self
 
   def threadReadFunc(self):
     global keep_running
-    num_files_read = 0
-    start_time = datetime.datetime.now()
-    print_delay = datetime.timedelta(seconds=1)
-    next_print_time = start_time
-    num_files = len(self.files_to_read)
-    while keep_running:
-      file_name = None
-      try:
+
+    class FileReader(object):
+      def __init__(self, npr, num_files):
+        self.npr = npr
+        self.num_files_read = 0
+        self.start_time = datetime.datetime.now()
+        self.print_delay = datetime.timedelta(seconds=1)
+        self.next_print_time = self.start_time
+        self.num_files = num_files
+        self.lock = threading.Lock()
+
+      def __call__(self, file_name):
+        global keep_running
+        if not keep_running:
+          raise Exception('killed')
+        now = datetime.datetime.now()
         with self.lock:
-          file_name = self.files_to_read.pop()
-      except IndexError:
-        break
-      stories = self.npr.loadStoriesFromFile(file_name)
+          self.num_files_read += 1
+          if now >= self.next_print_time:
+            elapsed = datetime.datetime.now() - self.start_time
+            files_per_sec = self.num_files_read / elapsed.total_seconds()
+            percent = self.num_files_read * 100.0 / self.num_files
+            remaining_secs = (self.num_files - self.num_files_read) / files_per_sec
+            print('%s: %.1f%%, fps:%.1f, remaining:%ds' % \
+                  (file_name, percent, files_per_sec, remaining_secs),
+                  file=sys.stderr)
+            self.next_print_time = now + self.print_delay
+        return self.npr.loadStoriesFromFile(file_name)
 
-      num_files_read += 1
-      now = datetime.datetime.now()
-      if now >= next_print_time:
-        elapsed = datetime.datetime.now() - start_time
-        files_per_sec = num_files_read / elapsed.total_seconds()
-        percent = num_files_read * 100.0 / num_files
-        remaining_secs = (num_files - num_files_read) / files_per_sec
-        print('%s: %.1f%%, fps:%.1f, remaining:%ds' % \
-              (file_name, percent, files_per_sec, remaining_secs),
-              file=sys.stderr)
-        next_print_time = now + print_delay
-
-      with self.lock:
-        self.stories.extend(stories)
+    try:
+      reader = FileReader(self.npr, len(self.files_to_read))
+      with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = [executor.submit(reader, fn) for fn in self.files_to_read]
+        for future in concurrent.futures.as_completed(futures):
+          if future.exception() is not None:
+            raise future.exception()
+          stories = future.result()
+          with self.lock:
+            self.stories.extend(stories)
+    except Exception as e:
+      self.thread_exception = e
+      raise e
 
   def __next__(self):
     global keep_running
-    try:
-      with self.lock:
-        num_files_left = len(self.files_to_read)
-        story = self.stories.pop()
-    except IndexError:
-      story = None
-
-    if story:
-      return story
-
-    if not num_files_left:
-      raise StopIteration
-
-    # If here then we're iterating faster than stories can be read, so wait for
-    # more stories to be added.
-    while not story:
-      time.sleep(StoryReader.sleepSecs)
+    while True:
       if not keep_running:
         raise StopIteration
       try:
         with self.lock:
           story = self.stories.pop()
+          if story:
+            return story
       except IndexError:
-        pass
-    return story
+        if not self.t.isAlive():
+          if self.thread_exception:
+            raise self.thread_exception
+          raise StopIteration
+        # Still running, but no new stories, so wait for more to be read.
+        time.sleep(StoryReader.sleepSecs)
 
 class GenderOptions(object):
   def __init__(self, groups, all_tags, ignore_tag_ids):
