@@ -9,6 +9,7 @@ import dateutil.parser
 import glob
 import itertools
 import json
+import multiprocessing
 import nltk.data
 from operator import attrgetter
 import re
@@ -25,6 +26,7 @@ import xml.etree.cElementTree as ET
 
 # Last startNum retrieved was 154534
 
+num_cpus = multiprocessing.cpu_count()
 keep_running = True
 
 def handler(signum, frame):
@@ -209,7 +211,7 @@ class StoryReader(object):
 
     try:
       reader = FileReader(self.npr, len(self.files_to_read))
-      with concurrent.futures.ThreadPoolExecutor() as executor:
+      with concurrent.futures.ThreadPoolExecutor(max_workers=num_cpus) as executor:
         futures = [executor.submit(reader, fn) for fn in self.files_to_read]
         for future in concurrent.futures.as_completed(futures):
           if future.exception() is not None:
