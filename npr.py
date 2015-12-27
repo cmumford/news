@@ -144,6 +144,37 @@ class GenderStats(object):
     return "Sex,Total,Cancer,Youth\n%s,%d,%d,%d" % \
         (self.title, self.total, self.cancer, self.youth)
 
+class ProgressPrinter(object):
+  print_delay = datetime.timedelta(seconds=1)
+
+  def __init__(self, title, max_count):
+    self.count = 0
+    self.title = title
+    self.max_count = max_count
+    self.start_time = None
+    self.next_print_time = None
+    self.lock = threading.Lock()
+
+  def increment(self):
+    with self.lock:
+      now = datetime.datetime.now()
+      if not self.start_time:
+        self.start_time = now - ProgressPrinter.print_delay
+        self.next_print_time = now
+      self.count += 1
+      if now >= self.next_print_time:
+        elapsed = datetime.datetime.now() - self.start_time
+        items_per_sec = self.count / elapsed.total_seconds()
+        if self.max_count > 0:
+          percent = self.count * 100.0 / self.max_count
+          remaining_secs = (self.max_count - self.count) / items_per_sec
+          print('%s: %.1f%%, ips:%.1f, remaining:%ds' % \
+                (self.title, percent, items_per_sec, remaining_secs),
+                file=sys.stderr)
+        else:
+          print('%s: %.d, ips:%.1f' % (self.title, self.count, items_per_sec))
+        self.next_print_time = now + self.print_delay
+
 # Read a collection of story files.
 class StoryReader(object):
   sleepSecs = 1
@@ -166,29 +197,14 @@ class StoryReader(object):
     class FileReader(object):
       def __init__(self, npr, num_files):
         self.npr = npr
-        self.num_files_read = 0
-        self.start_time = datetime.datetime.now()
-        self.print_delay = datetime.timedelta(seconds=1)
-        self.next_print_time = self.start_time
-        self.num_files = num_files
-        self.lock = threading.Lock()
+        self.progress = ProgressPrinter('FileReader', num_files)
 
       def __call__(self, file_name):
         global keep_running
         if not keep_running:
           raise Exception('killed')
-        now = datetime.datetime.now()
-        with self.lock:
-          self.num_files_read += 1
-          if now >= self.next_print_time:
-            elapsed = datetime.datetime.now() - self.start_time
-            files_per_sec = self.num_files_read / elapsed.total_seconds()
-            percent = self.num_files_read * 100.0 / self.num_files
-            remaining_secs = (self.num_files - self.num_files_read) / files_per_sec
-            print('%s: %.1f%%, fps:%.1f, remaining:%ds' % \
-                  (file_name, percent, files_per_sec, remaining_secs),
-                  file=sys.stderr)
-            self.next_print_time = now + self.print_delay
+        if self.progress:
+          self.progress.increment()
         return self.npr.loadStoriesFromFile(file_name)
 
     try:
