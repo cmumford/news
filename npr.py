@@ -402,8 +402,10 @@ class NPR(object):
     combined_tags = copy.copy(NPR.female_options.all_tags)
     combined_tags |= NPR.male_options.all_tags
 
+    progress = ProgressPrinter('Matcher', 0)
     matching_stories = []
     for story in StoryReader(self, glob.glob('stories/*.xml')):
+      progress.increment()
       if story.hasATag(combined_tags):
         matching_stories.append(story)
 
