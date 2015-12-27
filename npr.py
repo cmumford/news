@@ -656,23 +656,23 @@ class NPR(object):
   def analyzeSentiments(self):
     tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
     classifier = self.newSentimentClassifier()
-    mother_re = re.compile(r'.*\bmother\b.*')
-    father_re = re.compile(r'.*\bfather\b.*')
     for story in StoryReader(self, glob.glob('stories/*.xml')):
-      for para in story.text_:
-        for sentence in tokenizer.tokenize(para):
-          if Story.isCopyrightSentence(sentence):
-            continue
+      for paragraph in story.text_:
+        if Story.isCopyrightSentence(paragraph):
+          continue
+        for sentence in tokenizer.tokenize(paragraph):
           sentence = sentence.lower()
-          is_mother = mother_re.match(sentence) != None
-          is_father = father_re.match(sentence) != None
-          if is_mother or is_father:
-            cl = classifier.classify(NPR.extract_features(sentence.lower().split()))
-            if cl == 'neg':
-              if is_mother:
-                print('Mother:', cl, sentence)
-              if is_father:
-                print('Father:', cl, sentence)
+          sentence_words = Story.extractWords(sentence)
+          is_female = NPR.matchRegExes(sentence_words,
+                                       NPR.female_options.all_res)
+          is_male = NPR.matchRegExes(sentence_words, NPR.male_options.all_res)
+          if is_female or is_male:
+            cl = classifier.classify(NPR.extract_features(sentence_words))
+            if cl != 'pos':
+              if is_female:
+                print('Female:', cl, sentence)
+              if is_male:
+                print('Male:', cl, sentence)
 
   def analyzeWords(self):
     class Counter(object):
