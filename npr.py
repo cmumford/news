@@ -111,8 +111,9 @@ class Story(object):
 
   def hasATag(self, tags):
     for tag in tags:
-      if tag in self.tags_:
-        return True
+      for t in self.tags_:
+        if tag.id_ == t.id_:
+          return True
     return False
 
 class GenderStats(object):
