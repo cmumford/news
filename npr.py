@@ -348,48 +348,31 @@ class GenderSentimentCounter(object):
                   neg_counts.female.count += 1
     return (pos_counts, neg_counts)
 
-class StorySentimentAnalyzer(object):
+class FileSentimentAnalyzer(object):
   def __init__(self):
-    self.tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-    self.classifier = self.newSentimentClassifier()
+    self.classifier = NPR.newSentimentClassifier()
 
-  def newSentimentClassifier(self):
-    negids = movie_reviews.fileids('neg')
-    posids = movie_reviews.fileids('pos')
-
-    negfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'neg') for f in negids]
-    posfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'pos') for f in posids]
-
-    negcutoff = int(len(negfeats)*3/4)
-    poscutoff = int(len(posfeats)*3/4)
-
-    trainfeats = negfeats[:negcutoff] + posfeats[:poscutoff]
-    print('Training on', len(trainfeats), 'instances...')
-
-    classifier = NaiveBayesClassifier.train(trainfeats)
-    testfeats = negfeats[negcutoff:] + posfeats[poscutoff:]
-    print('Testing on', len(testfeats), 'instances, accuracy:',
-           nltk.classify.util.accuracy(classifier, testfeats))
-    classifier.show_most_informative_features()
-    return classifier
-
-  def __call__(self, story):
+  def __call__(self, file_name):
     pos_counter = GenderCounter('positive')
     neg_counter = GenderCounter('negative')
+    tokenizer = None
 
-    for paragraph in story.text_:
-      if Story.isCopyrightSentence(paragraph):
-        continue
-      for sentence in self.tokenizer.tokenize(paragraph):
-        sentence_words = Story.extractWords(sentence.lower())
-        is_female = NPR.matchRegExes(sentence_words, NPR.female_options.all_res)
-        is_male = NPR.matchRegExes(sentence_words, NPR.male_options.all_res)
-        if is_female or is_male:
-          cl = self.classifier.classify(NPR.extract_features(sentence_words))
-          if cl == 'pos':
-            pos_counter.increment(int(is_female), int(is_male))
-          if cl == 'neg':
-            neg_counter.increment(int(is_female), int(is_male))
+    for story in NPR.loadStoriesFromFile(file_name):
+      for paragraph in story.text_:
+        if Story.isCopyrightSentence(paragraph):
+          continue
+        if not tokenizer:
+          tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+        for sentence in tokenizer.tokenize(paragraph):
+          sentence_words = Story.extractWords(sentence.lower())
+          is_female = NPR.matchRegExes(sentence_words, NPR.female_options.all_res)
+          is_male = NPR.matchRegExes(sentence_words, NPR.male_options.all_res)
+          if is_female or is_male:
+            cl = self.classifier.classify(NPR.extract_features(sentence_words))
+            if cl == 'pos':
+              pos_counter.increment(int(is_female), int(is_male))
+            if cl == 'neg':
+              neg_counter.increment(int(is_female), int(is_male))
     return (pos_counter, neg_counter)
 
 class NPR(object):
@@ -436,6 +419,27 @@ class NPR(object):
       total_stories += story_count
       print('there are', story_count, 'stories. So far:', total_stories)
       params['startNum'] = params['startNum'] + story_count
+
+  @staticmethod
+  def newSentimentClassifier():
+    negids = movie_reviews.fileids('neg')
+    posids = movie_reviews.fileids('pos')
+
+    negfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'neg') for f in negids]
+    posfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'pos') for f in posids]
+
+    negcutoff = int(len(negfeats)*3/4)
+    poscutoff = int(len(posfeats)*3/4)
+
+    trainfeats = negfeats[:negcutoff] + posfeats[:poscutoff]
+    print('Training on', len(trainfeats), 'instances...')
+
+    classifier = NaiveBayesClassifier.train(trainfeats)
+    testfeats = negfeats[negcutoff:] + posfeats[poscutoff:]
+    print('Testing on', len(testfeats), 'instances, accuracy:',
+           nltk.classify.util.accuracy(classifier, testfeats))
+    classifier.show_most_informative_features()
+    return classifier
 
   @staticmethod
   def loadStoriesFromFile(file_name):
@@ -678,15 +682,14 @@ class NPR(object):
     return features
 
   def analyzeSentiments(self):
-    analyzer = StorySentimentAnalyzer()
+    analyzer = FileSentimentAnalyzer()
     pos_counter = GenderCounter('positive')
     neg_counter = GenderCounter('negative')
-    progress = ProgressPrinter('StorySentimentAnalyzer', 0)
-    with concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus) as executor:
-      futures = []
-      for story in StoryReader(self, glob.glob('stories/*.xml')):
-        futures.append(executor.submit(analyzer, story))
-      for future in concurrent.futures.as_completed(futures):
+    file_names = glob.glob('stories/*.xml')
+    progress = ProgressPrinter('FileSentimentAnalyzer', len(file_names))
+    with concurrent.futures.ProcessPoolExecutor(max_workers=int(num_cpus*3/2)) as executor:
+      for future in concurrent.futures.as_completed(executor.submit(analyzer, fn) for fn in file_names):
+        progress.increment()
         if future.exception() is not None:
           raise future.exception()
         (pos, neg) = future.result()
