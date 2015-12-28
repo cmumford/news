@@ -384,7 +384,7 @@ class GenderWordCounter(object):
 
 class FileSentimentAnalyzer(object):
   def __init__(self):
-    self.classifier = NPR.newSentimentClassifier()
+    self.classifier = NPR.createSentimentClassifier()
 
   def __call__(self, file_name):
     pos_counter = GenderCounter('positive')
@@ -455,7 +455,7 @@ class NPR(object):
       params['startNum'] = params['startNum'] + story_count
 
   @staticmethod
-  def newSentimentClassifier():
+  def createSentimentClassifier():
     negids = movie_reviews.fileids('neg')
     posids = movie_reviews.fileids('pos')
 
