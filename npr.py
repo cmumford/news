@@ -348,6 +348,50 @@ class GenderSentimentCounter(object):
                   neg_counts.female.count += 1
     return (pos_counts, neg_counts)
 
+class StorySentimentAnalyzer(object):
+  def __init__(self):
+    self.tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+    self.classifier = self.newSentimentClassifier()
+
+  def newSentimentClassifier(self):
+    negids = movie_reviews.fileids('neg')
+    posids = movie_reviews.fileids('pos')
+
+    negfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'neg') for f in negids]
+    posfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'pos') for f in posids]
+
+    negcutoff = int(len(negfeats)*3/4)
+    poscutoff = int(len(posfeats)*3/4)
+
+    trainfeats = negfeats[:negcutoff] + posfeats[:poscutoff]
+    print('Training on', len(trainfeats), 'instances...')
+
+    classifier = NaiveBayesClassifier.train(trainfeats)
+    testfeats = negfeats[negcutoff:] + posfeats[poscutoff:]
+    print('Testing on', len(testfeats), 'instances, accuracy:',
+           nltk.classify.util.accuracy(classifier, testfeats))
+    classifier.show_most_informative_features()
+    return classifier
+
+  def __call__(self, story):
+    pos_counter = GenderCounter('positive')
+    neg_counter = GenderCounter('negative')
+
+    for paragraph in story.text_:
+      if Story.isCopyrightSentence(paragraph):
+        continue
+      for sentence in self.tokenizer.tokenize(paragraph):
+        sentence_words = Story.extractWords(sentence.lower())
+        is_female = NPR.matchRegExes(sentence_words, NPR.female_options.all_res)
+        is_male = NPR.matchRegExes(sentence_words, NPR.male_options.all_res)
+        if is_female or is_male:
+          cl = self.classifier.classify(NPR.extract_features(sentence_words))
+          if cl == 'pos':
+            pos_counter.increment(int(is_female), int(is_male))
+          if cl == 'neg':
+            neg_counter.increment(int(is_female), int(is_male))
+    return (pos_counter, neg_counter)
+
 class NPR(object):
   baseUrl = 'http://api.npr.org/query?'
   ignore_tag_ids = [
@@ -634,58 +678,12 @@ class NPR(object):
     return features
 
   def analyzeSentiments(self):
-
-    class Analyzer(object):
-      def __init__(self):
-        self.progress = ProgressPrinter('StorySentimentAnalyzer', 0)
-        self.classifier = self.newSentimentClassifier()
-
-      def newSentimentClassifier(self):
-        negids = movie_reviews.fileids('neg')
-        posids = movie_reviews.fileids('pos')
-
-        negfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'neg') for f in negids]
-        posfeats = [(NPR.word_feats(movie_reviews.words(fileids=[f])), 'pos') for f in posids]
-
-        negcutoff = int(len(negfeats)*3/4)
-        poscutoff = int(len(posfeats)*3/4)
-
-        trainfeats = negfeats[:negcutoff] + posfeats[:poscutoff]
-        print('Training on', len(trainfeats), 'instances...')
-
-        classifier = NaiveBayesClassifier.train(trainfeats)
-        testfeats = negfeats[negcutoff:] + posfeats[poscutoff:]
-        print('Testing on', len(testfeats), 'instances, accuracy:',
-               nltk.classify.util.accuracy(classifier, testfeats))
-        classifier.show_most_informative_features()
-        return classifier
-
-      def __call__(self, story):
-        self.progress.increment()
-        pos_counter = GenderCounter('positive')
-        neg_counter = GenderCounter('negative')
-
-        for paragraph in story.text_:
-          if Story.isCopyrightSentence(paragraph):
-            continue
-          for sentence in tokenizer.tokenize(paragraph):
-            sentence_words = Story.extractWords(sentence.lower())
-            is_female = NPR.matchRegExes(sentence_words, NPR.female_options.all_res)
-            is_male = NPR.matchRegExes(sentence_words, NPR.male_options.all_res)
-            if is_female or is_male:
-              cl = self.classifier.classify(NPR.extract_features(sentence_words))
-              if cl == 'pos':
-                pos_counter.increment(int(is_female), int(is_male))
-              if cl == 'neg':
-                neg_counter.increment(int(is_female), int(is_male))
-        return (pos_counter, neg_counter)
-
-    analyzer = Analyzer()
-    tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-    futures = []
+    analyzer = StorySentimentAnalyzer()
     pos_counter = GenderCounter('positive')
     neg_counter = GenderCounter('negative')
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_cpus) as executor:
+    progress = ProgressPrinter('StorySentimentAnalyzer', 0)
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus) as executor:
+      futures = []
       for story in StoryReader(self, glob.glob('stories/*.xml')):
         futures.append(executor.submit(analyzer, story))
       for future in concurrent.futures.as_completed(futures):
@@ -740,6 +738,7 @@ class NPR(object):
       for future in concurrent.futures.as_completed(
           [executor.submit(counter, story) for story in \
                  StoryReader(self, glob.glob('stories/*.xml'))]):
+        progress.increment()
         if future.exception() is not None:
           raise future.exception()
         else:
