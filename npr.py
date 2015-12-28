@@ -177,6 +177,10 @@ class ProgressPrinter(object):
           print('%s: %.d, ips:%.2f' % (self.title, self.count, items_per_sec))
         self.next_print_time = now + self.print_delay
 
+class StoryFileReader(object):
+  def __call__(self, file_name):
+    return NPR.loadStoriesFromFile(file_name)
+
 # Read a collection of story files.
 class StoryReader(object):
   sleepSecs = 1
@@ -196,29 +200,16 @@ class StoryReader(object):
   def threadReadFunc(self):
     global keep_running
 
-    class FileReader(object):
-      def __init__(self, npr, num_files):
-        self.npr = npr
-        self.progress = ProgressPrinter('FileReader', num_files)
-
-      def __call__(self, file_name):
-        global keep_running
-        if not keep_running:
-          raise Exception('killed')
-        if self.progress:
-          self.progress.increment()
-        return self.npr.loadStoriesFromFile(file_name)
-
     try:
-      reader = FileReader(self.npr, len(self.files_to_read))
-      with concurrent.futures.ThreadPoolExecutor(max_workers=num_cpus) as executor:
-        futures = [executor.submit(reader, fn) for fn in self.files_to_read]
-        for future in concurrent.futures.as_completed(futures):
+      reader = StoryFileReader()
+      progress = ProgressPrinter('StoryFileReader', len(self.files_to_read))
+      with concurrent.futures.ProcessPoolExecutor() as executor:
+        for future in concurrent.futures.as_completed(executor.submit(reader, fn) for fn in self.files_to_read):
+          progress.increment()
           if future.exception() is not None:
             raise future.exception()
-          stories = future.result()
           with self.lock:
-            self.stories.extend(stories)
+            self.stories.extend(future.result())
     except Exception as e:
       self.thread_exception = e
       raise e
