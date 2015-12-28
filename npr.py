@@ -305,6 +305,40 @@ class GenderCounter(object):
   def __str__(self):
     return '%s %s %s' % (self.title, self.female, self.male)
 
+class GenderSentimentCounter(object):
+  def __init__(self):
+    self.tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+    self.positive_words = NPR.readWordList('positive-words.txt')
+    self.negative_words = NPR.readWordList('negative-words.txt')
+
+  def __call__(self, file_name):
+    pos_counts = GenderCounter('positive')
+    neg_counts = GenderCounter('negative')
+    for story in NPR.loadStoriesFromFile(file_name):
+      for para in story.text_:
+        for sentence in self.tokenizer.tokenize(para):
+          if Story.isCopyrightSentence(sentence):
+            continue
+          sentence = sentence.lower()
+          sentence_words = Story.extractWords(sentence)
+          is_female = NPR.matchesAnyRegEx(sentence_words,
+                                          NPR.female_options.all_res)
+          is_male = NPR.matchesAnyRegEx(sentence_words,
+                                        NPR.male_options.all_res)
+          if is_female or is_male:
+            for word in sentence_words:
+              if word in self.positive_words:
+                if is_male:
+                  pos_counts.male.count += 1
+                if is_female:
+                  pos_counts.female.count += 1
+              if word in self.negative_words:
+                if is_male:
+                  neg_counts.male.count += 1
+                if is_female:
+                  neg_counts.female.count += 1
+    return (pos_counts, neg_counts)
+
 class NPR(object):
   baseUrl = 'http://api.npr.org/query?'
   ignore_tag_ids = [
@@ -350,7 +384,8 @@ class NPR(object):
       print('there are', story_count, 'stories. So far:', total_stories)
       params['startNum'] = params['startNum'] + story_count
 
-  def loadStoriesFromFile(self, file_name):
+  @staticmethod
+  def loadStoriesFromFile(file_name):
     stories = []
     root = ET.parse(file_name).getroot()
     for xml_story in root.findall('list/story'):
@@ -469,7 +504,7 @@ class NPR(object):
     self.printTags('Male', stories, NPR.male_options.all_tags)
 
   def analyzeMatchingStories(self):
-    matching_stories = self.loadStoriesFromFile('matching.xml')
+    matching_stories = NPR.loadStoriesFromFile('matching.xml')
     print('Analyzing', len(matching_stories), 'matching stories')
 
     for year in range(2010, 2016):
@@ -554,61 +589,20 @@ class NPR(object):
     return words
 
   def countGenderSentiments(self):
-    class Counter(object):
-      def __init__(self):
-        self.tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-        self.positive_words = NPR.readWordList('positive-words.txt')
-        self.negative_words = NPR.readWordList('negative-words.txt')
-
-      def __call__(self, story):
-        pos_counts = GenderCounter('positive')
-        neg_counts = GenderCounter('negative')
-        for para in story.text_:
-          for sentence in self.tokenizer.tokenize(para):
-            if Story.isCopyrightSentence(sentence):
-              continue
-            sentence = sentence.lower()
-            sentence_words = Story.extractWords(sentence)
-            is_female = NPR.matchesAnyRegEx(sentence_words,
-                                            NPR.female_options.all_res)
-            is_male = NPR.matchesAnyRegEx(sentence_words,
-                                          NPR.male_options.all_res)
-            if is_female or is_male:
-              for word in sentence_words:
-                if word in self.positive_words:
-                  if is_male:
-                    pos_counts.male.count += 1
-                  if is_female:
-                    pos_counts.female.count += 1
-                if word in self.negative_words:
-                  if is_male:
-                    neg_counts.male.count += 1
-                  if is_female:
-                    neg_counts.female.count += 1
-        return (pos_counts, neg_counts)
-
-    counter = Counter()
+    counter = GenderSentimentCounter()
     pos = GenderCounter('positive')
     neg = GenderCounter('negative')
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-      futures = [executor.submit(counter, story) for story in \
-                 StoryReader(self, glob.glob('stories/*.xml'))]
-      print_delay = datetime.timedelta(seconds=1)
-      next_print_time = datetime.datetime.now()
-      future_num = 0
+    file_names = glob.glob('stories/*.xml')
+    progress = ProgressPrinter('SentimentAnalyzer', len(file_names))
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus) as executor:
+      futures = [executor.submit(counter, fn) for fn in file_names]
       for future in concurrent.futures.as_completed(futures):
+        progress.increment()
         if future.exception() is not None:
           raise future.exception()
-        else:
-          (p, n) = future.result()
-          pos.add(p)
-          neg.add(n)
-        future_num += 1
-        now = datetime.datetime.now()
-        if now >= next_print_time:
-          progress = future_num * 100 / len(futures)
-          print('Progress: %.1f%%' % progress, file=sys.stderr)
-          next_print_time = now + print_delay
+        (p, n) = future.result()
+        pos.add(p)
+        neg.add(n)
     print(pos)
     print(neg)
 
