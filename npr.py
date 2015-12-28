@@ -210,7 +210,7 @@ class StoryReader(object):
       with concurrent.futures.ProcessPoolExecutor() as executor:
         for future in concurrent.futures.as_completed(executor.submit(reader, fn) for fn in self.files_to_read):
           progress.increment()
-          if future.exception() is not None:
+          if future.exception():
             raise future.exception()
           with self.lock:
             self.stories.extend(future.result())
