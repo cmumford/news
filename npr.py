@@ -170,11 +170,11 @@ class ProgressPrinter(object):
         if self.max_count > 0:
           percent = self.count * 100.0 / self.max_count
           remaining_secs = (self.max_count - self.count) / items_per_sec
-          print('%s: %.1f%%, ips:%.1f, remaining:%ds' % \
+          print('%s: %.1f%%, ips:%.2f, remaining:%ds' % \
                 (self.title, percent, items_per_sec, remaining_secs),
                 file=sys.stderr)
         else:
-          print('%s: %.d, ips:%.1f' % (self.title, self.count, items_per_sec))
+          print('%s: %.d, ips:%.2f' % (self.title, self.count, items_per_sec))
         self.next_print_time = now + self.print_delay
 
 # Read a collection of story files.
