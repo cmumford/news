@@ -759,41 +759,6 @@ class NPR(object):
           words.add(items[0])
     return words
 
-  def analyzeWords2(self):
-    tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-    positive_words = NPR.readWordList('positive-words.txt')
-    negative_words = NPR.readWordList('negative-words.txt')
-    male_positive_count = 0
-    male_negative_count = 0
-    female_positive_count = 0
-    female_negative_count = 0
-    for story in StoryReader(self, glob.glob('stories/*.xml')):
-      for para in story.text_:
-        for sentence in tokenizer.tokenize(para):
-          if Story.isCopyrightSentence(sentence):
-            continue
-          sentence = sentence.lower()
-          sentence_words = Story.extractWords(sentence)
-          is_female = NPR.matchRegExes(sentence_words,
-                                       NPR.female_options.all_res)
-          is_male = NPR.matchRegExes(sentence_words, NPR.male_options.all_res)
-          if is_female or is_male:
-            for word in sentence_words:
-              if word in positive_words:
-                if is_male:
-                  male_positive_count += 1
-                if is_female:
-                  female_positive_count += 1
-              if word in negative_words:
-                if is_male:
-                  male_negative_count += 1
-                if is_female:
-                  female_negative_count += 1
-    print('Female positive:', female_positive_count, 'negative:',
-          female_negative_count)
-    print('Male positive:', male_positive_count, 'negative:',
-          male_negative_count)
-
   def countAttribute(self, attr_name):
     counter = GenderCounter(attr_name)
     for story in StoryReader(self, glob.glob('stories/*.xml')):
