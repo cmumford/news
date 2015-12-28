@@ -143,9 +143,12 @@ class GenderStats(object):
     return "%s total:%d cancer:%d youth:%d" % (self.title, self.total, \
                                                self.cancer, self.youth)
 
+  @staticmethod
+  def csvHeader():
+    return "Sex,Total,Cancer,Youth"
+
   def asCsv(self):
-    return "Sex,Total,Cancer,Youth\n%s,%d,%d,%d" % \
-        (self.title, self.total, self.cancer, self.youth)
+    return "%s,%d,%d,%d" % (self.title, self.total, self.cancer, self.youth)
 
 class ProgressPrinter(object):
   print_delay = datetime.timedelta(seconds=1)
@@ -508,6 +511,7 @@ class NPR(object):
     matching_stories = NPR.loadStoriesFromFile('matching.xml')
     print('Analyzing', len(matching_stories), 'matching stories')
 
+    print(GenderStats.csvHeader())
     for year in range(2010, 2016):
       stories = []
       for story in matching_stories:
