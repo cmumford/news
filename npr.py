@@ -693,7 +693,7 @@ class NPR(object):
       NPR.printDictAsCSV(counts, 'analysis_male_cancer.csv')
       male.addCancer(counts)
 
-      counts = NPR.calcTagCounts(stories, NPR.female_options.tags['youth'])
+      counts = NPR.calcTagCounts(stories, NPR.male_options.tags['youth'])
       NPR.printDictAsCSV(counts, 'analysis_boys.csv')
       male.addYouth(counts)
 
