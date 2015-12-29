@@ -164,10 +164,10 @@ class GenderStats(object):
 
   @staticmethod
   def csvHeader():
-    return "Sex,Total,Cancer,Youth"
+    return "Sex,Cancer,Youth,Total"
 
   def asCsv(self):
-    return "%s,%d,%d,%d" % (self.title, self.total, self.cancer, self.youth)
+    return "%s,%d,%d,%d" % (self.title, self.cancer, self.youth, self.total)
 
 class ProgressPrinter(object):
   print_delay = datetime.timedelta(seconds=1)
