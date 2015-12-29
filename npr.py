@@ -469,6 +469,7 @@ class NPR(object):
   gender_tags = set()
   gender_tags |= female_options.all_tags
   gender_tags |= male_options.all_tags
+  classifier_story_min_count = 17
 
   def __init__(self, api_key):
     self.api_key_ = api_key
@@ -865,7 +866,7 @@ class NPR(object):
       progress.increment()
       tt = []
       for tag in story.tags_:
-        if tag_counts[tag] >= 17 or tag in NPR.gender_tags:
+        if tag_counts[tag] >= NPR.classifier_story_min_count or tag in NPR.gender_tags:
           if tag not in tags:
             tags.append(tag)
           tt.append(tag.title_)
