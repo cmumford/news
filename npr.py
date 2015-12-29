@@ -814,7 +814,7 @@ class NPR(object):
       counter.increment(female_count, male_count)
     print(counter)
 
-  def train(self):
+  def classifyStories(self):
     stories = []
     tag_counts = {}
     # First scan to calculate counts
