@@ -204,16 +204,20 @@ class ProgressPrinter(object):
         self.next_print_time = now + self.print_delay
 
 class StoryFileReader(object):
+  def __init__(self, apply_auto_tags):
+    self.apply_auto_tags = apply_auto_tags
+
   def __call__(self, file_name):
-    return NPR.loadStoriesFromFile(file_name)
+    return NPR.loadStoriesFromFile(file_name, self.apply_auto_tags)
 
 # Read a collection of story files.
 class StoryReader(object):
   sleepSecs = 1
 
-  def __init__(self, npr, file_names):
+  def __init__(self, npr, file_names, apply_auto_tags=True):
     self.npr = npr
     self.files_to_read = file_names
+    self.apply_auto_tags = apply_auto_tags
     self.stories = []
     self.lock = threading.Lock()
     self.t = threading.Thread(target=self.threadReadFunc)
@@ -227,7 +231,7 @@ class StoryReader(object):
     global keep_running
 
     try:
-      reader = StoryFileReader()
+      reader = StoryFileReader(self.apply_auto_tags)
       progress = ProgressPrinter('StoryFileReader', 'files/sec',
                                  len(self.files_to_read))
       with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -513,7 +517,11 @@ class NPR(object):
     return classifier
 
   @staticmethod
-  def loadStoriesFromFile(file_name):
+  def loadStoriesFromFile(file_name, apply_missing_tags=True):
+    auto_tagged_stories = None
+    if apply_missing_tags:
+      stories = NPR.loadStoriesFromFile('classified_stories.xml', False)
+      auto_tagged_stories = {s.id_:s for s in stories}
     stories = []
     root = ET.parse(file_name).getroot()
     for xml_story in root.findall('list/story'):
@@ -536,6 +544,9 @@ class NPR(object):
         tag_id = int(parent.get('id'))
         tag = NPR.tags[tag_id]
         story.tags_.add(tag)
+      # If this story was auto-tagged then apply those as well.
+      if auto_tagged_stories and story.id_ in auto_tagged_stories:
+        story.tags_ |= auto_tagged_stories[story.id_].tags_
       for text in xml_story.findall("text/paragraph"):
         if text.text:
           story.text_.append(text.text)
@@ -834,7 +845,7 @@ class NPR(object):
     stories = []
     tag_counts = {}
     # First scan to calculate counts
-    for story in StoryReader(self, glob.glob('stories/*.xml')):
+    for story in StoryReader(self, glob.glob('stories/*.xml'), False):
       if not story.hasText():
         continue
       stories.append(story)
