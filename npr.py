@@ -835,7 +835,6 @@ class NPR(object):
     progress = ProgressPrinter('StoryText', 'stories/sec', len(stories))
     for story in stories:
       progress.increment()
-      story_text = story.rawText()
       tt = []
       for tag in story.tags_:
         if tag_counts[tag] >= 15 or tag in NPR.gender_tags:
@@ -843,7 +842,7 @@ class NPR(object):
             tags.append(tag)
           tt.append(tag.title_)
       if len(tt):
-        data.append(story_text)
+        data.append(story.rawText())
         targets.append(tt)
 
     print("Transforming targets...")
