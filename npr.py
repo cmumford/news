@@ -820,8 +820,8 @@ class NPR(object):
   @staticmethod
   def readWordList(fname):
     words = set()
-    with open(fname) as f:
-      for line in f.readlines():
+    with codecs.open(fname, encoding='latin-1') as f:
+      for line in f:
         items = line.split()
         if len(items) and not items[0].startswith('#'):
           words.add(items[0])
