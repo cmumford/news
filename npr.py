@@ -832,7 +832,9 @@ class NPR(object):
     tags = []
     data = []
     targets = []
+    progress = ProgressPrinter('StoryText', 'stories/sec', len(stories))
     for story in stories:
+      progress.increment()
       story_text = story.rawText()
       tt = []
       for tag in story.tags_:
