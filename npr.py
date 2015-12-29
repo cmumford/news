@@ -540,7 +540,7 @@ class NPR(object):
           story.text_.append(text.text)
     return stories
 
-  def writeStoriesToXml(self, stories):
+  def writeStoriesToXml(self, stories, fname):
     root = ET.Element("nprml")
     xml_list = ET.SubElement(root, "list")
     for story in stories:
@@ -563,7 +563,7 @@ class NPR(object):
         ET.SubElement(xml_text, "paragraph", num=str(para_idx)).text = t
         para_idx += 1
     tree = ET.ElementTree(root)
-    tree.write("matching.xml")
+    tree.write(fname)
 
   # Extract a subset of the stories, and write them to a single file for
   # analysis.
@@ -581,7 +581,7 @@ class NPR(object):
         matching_stories.extend(future.result())
 
     print('There are', len(matching_stories), 'matching stories')
-    npr.writeStoriesToXml(matching_stories)
+    npr.writeStoriesToXml(matching_stories, 'matching.xml')
 
   @staticmethod
   def one_in_another(container_a, container_b):
