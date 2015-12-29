@@ -429,6 +429,18 @@ class FileSentimentAnalyzer(object):
               neg_counter.increment(int(is_female), int(is_male))
     return (pos_counter, neg_counter)
 
+class ReadGenderStories(object):
+  def __call__(self, file_name):
+    stories = []
+    for story in NPR.loadStoriesFromFile(file_name):
+      for paragraph in story.text_:
+        if Story.isCopyrightSentence(paragraph):
+          continue
+      if story.hasATag(NPR.gender_tags):
+        stories.append(story)
+
+    return stories
+
 class NPR(object):
   baseUrl = 'http://api.npr.org/query?'
   ignore_tag_ids = [
@@ -541,12 +553,17 @@ class NPR(object):
   # Extract a subset of the stories, and write them to a single file for
   # analysis.
   def extractMatchingStories(self):
-    progress = ProgressPrinter('Matcher', 'stories/sec', 0)
+    file_names = glob.glob('stories/*.xml')
+    progress = ProgressPrinter('Matcher', 'files/sec', len(file_names))
     matching_stories = []
-    for story in StoryReader(self, glob.glob('stories/*.xml')):
-      progress.increment()
-      if story.hasATag(NPR.gender_tags):
-        matching_stories.append(story)
+    matcher = ReadGenderStories()
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus) as executor:
+      futures = [executor.submit(matcher, fn) for fn in file_names]
+      for future in concurrent.futures.as_completed(futures):
+        progress.increment()
+        if future.exception() is not None:
+          raise future.exception()
+        matching_stories.extend(future.result())
 
     print('There are', len(matching_stories), 'matching stories')
     npr.writeStoriesToXml(matching_stories)
