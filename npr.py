@@ -84,6 +84,7 @@ class Story(object):
     self.date_ = None
     self.tags_ = []
     self.text_ = []
+    self.url_ = ''
 
   def text(self):
     return ' '.join(self.text_)
@@ -517,6 +518,14 @@ class NPR(object):
     for xml_story in root.findall('list/story'):
       story = Story(int(xml_story.get('id')))
       story.title_ = xml_story.find('title').text
+      links = xml_story.findall("link[@type='short']")
+      if len(links) == 1:
+        story.url_ = links[0].text
+      if not story.url_:
+        links = xml_story.findall("link[@type='html']")
+        if len(links) == 1:
+          story.url_ = links[0].text
+
       xml_teaser = xml_story.find('teaser')
       if xml_teaser:
         story.teaser_ = xml_teaser.text
@@ -538,6 +547,12 @@ class NPR(object):
       xml_story = ET.SubElement(xml_list, "story", id=str(story.id_))
       ET.SubElement(xml_story, "title").text = story.title_
       ET.SubElement(xml_story, "storyDate").text = str(story.date_)
+      if story.teaser_:
+        ET.SubElement(xml_story, "teaser").text = story.teaser_
+      if story.url_:
+        # This isn't technically correct because |url_| could be from either
+        # the short link, or the long one.
+        ET.SubElement(xml_story, "link", type='short').text = story.url_
       for tag in story.tags_:
         parent = ET.SubElement(xml_story, "parent", type='tag', id=str(tag.id_))
         ET.SubElement(parent, "title").text = tag.title_
