@@ -857,6 +857,9 @@ class NPR(object):
         else:
           tag_counts[tag] = 1
 
+    print('Will be classifying using the following existing tags:')
+    npr.printAllTags(stories, NPR.classifier_story_min_count)
+
     # Now gather the data for stories with enough tags.
     tags = []
     data = []
