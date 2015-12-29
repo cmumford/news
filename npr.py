@@ -124,11 +124,14 @@ class Story(object):
     text = ' '.join(words)
     return re.sub(Story.copyright_re, '', text)
 
+  # Switch to the "local" tags of the same as the one in this story.
+  def switchTags(self):
+    self.tags_ = [NPR.tags[t.id_] for t in self.tags_]
+
   def hasATag(self, tags):
     for tag in tags:
-      for t in self.tags_:
-        if tag.id_ == t.id_:
-          return True
+      if tag in self.tags_:
+        return True
     return False
 
 class GenderStats(object):
@@ -227,8 +230,11 @@ class StoryReader(object):
           progress.increment()
           if future.exception():
             raise future.exception()
+          stories = future.result()
+          for story in stories:
+            story.switchTags()
           with self.lock:
-            self.stories.extend(future.result())
+            self.stories.extend(stories)
     except Exception as e:
       self.thread_exception = e
       raise e
