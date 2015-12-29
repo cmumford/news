@@ -443,7 +443,6 @@ class ReadGenderStories(object):
           continue
       if story.hasATag(NPR.gender_tags):
         stories.append(story)
-
     return stories
 
 class NPR(object):
@@ -578,24 +577,6 @@ class NPR(object):
     tree = ET.ElementTree(root)
     tree.write(fname)
 
-  # Extract a subset of the stories, and write them to a single file for
-  # analysis.
-  def extractMatchingStories(self):
-    file_names = glob.glob('stories/*.xml')
-    progress = ProgressPrinter('Matcher', 'files/sec', len(file_names))
-    matching_stories = []
-    matcher = ReadGenderStories()
-    with concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus) as executor:
-      futures = [executor.submit(matcher, fn) for fn in file_names]
-      for future in concurrent.futures.as_completed(futures):
-        progress.increment()
-        if future.exception() is not None:
-          raise future.exception()
-        matching_stories.extend(future.result())
-
-    print('There are', len(matching_stories), 'matching stories')
-    npr.writeStoriesToXml(matching_stories, 'matching.xml')
-
   @staticmethod
   def one_in_another(container_a, container_b):
     for c in container_a:
@@ -665,9 +646,22 @@ class NPR(object):
     print()
     self.printTags('Male', stories, NPR.male_options.all_tags, min_count)
 
-  def analyzeMatchingStories(self):
-    matching_stories = NPR.loadStoriesFromFile('matching.xml')
-    print('Analyzing', len(matching_stories), 'matching stories')
+  def analyzeGenderStories(self):
+    file_names = glob.glob('stories/*.xml')
+    progress = ProgressPrinter('Matcher', 'files/sec', len(file_names))
+    matching_stories = []
+    matcher = ReadGenderStories()
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus) as executor:
+      futures = [executor.submit(matcher, fn) for fn in file_names]
+      for future in concurrent.futures.as_completed(futures):
+        progress.increment()
+        if future.exception() is not None:
+          raise future.exception()
+        stories = future.result()
+        for story in stories:
+          story.switchTags()
+        matching_stories.extend(stories)
+    print('Have:', len(matching_stories), 'gender stories')
 
     print(GenderStats.csvHeader())
     for year in range(2010, 2016):
@@ -928,11 +922,7 @@ if __name__ == '__main__':
   try:
     api_key = open('key.txt').read().strip()
     npr = NPR(api_key)
-
-    # Expensive and *slow* (~5 min.)
-    npr.extractMatchingStories()
-
-    npr.analyzeMatchingStories()
+    npr.analyzeGenderStories()
   except:
     keep_running = False
     raise
