@@ -459,6 +459,7 @@ class NPR(object):
   ]
   all_tags = loadTags()
   tags = {tag.id_:tag for tag in all_tags}
+  tag_titles = {tag.title_:tag for tag in all_tags}
   female_options = FemaleOptions(all_tags, ignore_tag_ids)
   male_options = MaleOptions(all_tags, ignore_tag_ids)
   gender_tags = set()
@@ -852,7 +853,7 @@ class NPR(object):
       progress.increment()
       tt = []
       for tag in story.tags_:
-        if tag_counts[tag] >= 15 or tag in NPR.gender_tags:
+        if tag_counts[tag] >= 17 or tag in NPR.gender_tags:
           if tag not in tags:
             tags.append(tag)
           tt.append(tag.title_)
@@ -880,9 +881,32 @@ class NPR(object):
     predicted = text_clf.predict(story_texts)
     print("Printing results...")
     all_labels = lb.inverse_transform(predicted)
+    missing_gender_count = 0
+    missing_counter = GenderCounter('Missing gender tags')
+    missed_tags = []
     with open('categorized.txt', 'w') as f:
       for story, categories in zip(stories, all_labels):
-        print('%r => %s' % (story.title_, ','.join(categories) ), file=f)
+        print('%s => %s' % (story.title_, ','.join(categories) ), file=f)
+        if len(categories):
+          cl_tags = [NPR.tag_titles[c] for c in categories]
+          if NPR.one_in_another(cl_tags, NPR.gender_tags) \
+             and not NPR.one_in_another(story.tags_, NPR.gender_tags):
+            print('Title:', story.title_)
+            print('  url:', story.url_)
+            print('  npr:', ', '.join([t.title_ for t in story.tags_]))
+            print('  CLS:', ', '.join(categories))
+            print()
+            missing_gender_count += 1
+            missing_counter.increment(
+                int(NPR.one_in_another(cl_tags, NPR.female_options.all_tags)),
+                int(NPR.one_in_another(cl_tags, NPR.male_options.all_tags)))
+            story.tags_ = set(story.tags_)
+            story.tags_ |= set(cl_tags)
+            missed_tags.append(story)
+
+    print('Missing gender tags:', missing_gender_count)
+    print(missing_counter)
+    self.writeStoriesToXml(missed_tags, 'classified_stories.xml')
 
 if __name__ == '__main__':
   try:
