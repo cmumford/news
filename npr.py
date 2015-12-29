@@ -639,7 +639,7 @@ class NPR(object):
       w.writeheader()
       w.writerow(the_dict)
 
-  def printTags(self, title, stories, tags):
+  def printTags(self, title, stories, tags, min_count = 0):
     print('%s tags' % title)
     print('=========')
     counts = {}
@@ -652,16 +652,17 @@ class NPR(object):
     total = 0
     for tag in sorted(tags, key=attrgetter('title_')):
       count = counts[tag] if tag in counts else 0
-      total += count
-      print('%s:%d' % (tag.title_, count))
+      if count >= min_count:
+        total += count
+        print('%s:%d' % (tag.title_, count))
     print('---------')
     print('Total:%d' % total)
 
-  def printAllTags(self, stories):
+  def printAllTags(self, stories, min_count = 0):
     print()
-    self.printTags('Female', stories, NPR.female_options.all_tags)
+    self.printTags('Female', stories, NPR.female_options.all_tags, min_count)
     print()
-    self.printTags('Male', stories, NPR.male_options.all_tags)
+    self.printTags('Male', stories, NPR.male_options.all_tags, min_count)
 
   def analyzeMatchingStories(self):
     matching_stories = NPR.loadStoriesFromFile('matching.xml')
