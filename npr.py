@@ -82,7 +82,7 @@ class Story(object):
     self.title_ = ''
     self.teaser_ = ''
     self.date_ = None
-    self.tags_ = []
+    self.tags_ = set()
     self.text_ = []
     self.url_ = ''
 
@@ -127,7 +127,7 @@ class Story(object):
 
   # Switch to the "local" tags of the same as the one in this story.
   def switchTags(self):
-    self.tags_ = [NPR.tags[t.id_] for t in self.tags_]
+    self.tags_ = set([NPR.tags[t.id_] for t in self.tags_])
 
   def hasATag(self, tags):
     for tag in tags:
@@ -535,7 +535,7 @@ class NPR(object):
       for parent in xml_story.findall("parent[@type='tag']"):
         tag_id = int(parent.get('id'))
         tag = NPR.tags[tag_id]
-        story.tags_.append(tag)
+        story.tags_.add(tag)
       for text in xml_story.findall("text/paragraph"):
         if text.text:
           story.text_.append(text.text)
@@ -888,7 +888,7 @@ class NPR(object):
       for story, categories in zip(stories, all_labels):
         print('%s => %s' % (story.title_, ','.join(categories) ), file=f)
         if len(categories):
-          cl_tags = [NPR.tag_titles[c] for c in categories]
+          cl_tags = set([NPR.tag_titles[c] for c in categories])
           if NPR.one_in_another(cl_tags, NPR.gender_tags) \
              and not NPR.one_in_another(story.tags_, NPR.gender_tags):
             print('Title:', story.title_)
@@ -900,8 +900,8 @@ class NPR(object):
             missing_counter.increment(
                 int(NPR.one_in_another(cl_tags, NPR.female_options.all_tags)),
                 int(NPR.one_in_another(cl_tags, NPR.male_options.all_tags)))
-            story.tags_ = set(story.tags_)
-            story.tags_ |= set(cl_tags)
+            story.tags_ = story.tags_
+            story.tags_ |= cl_tags
             missed_tags.append(story)
 
     print('Missing gender tags:', missing_gender_count)
