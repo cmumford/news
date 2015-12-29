@@ -171,9 +171,10 @@ class GenderStats(object):
 class ProgressPrinter(object):
   print_delay = datetime.timedelta(seconds=1)
 
-  def __init__(self, title, max_count):
+  def __init__(self, title, meter, max_count):
     self.count = 0
     self.title = title
+    self.meter = meter
     self.max_count = max_count
     self.start_time = None
     self.next_print_time = None
@@ -192,11 +193,13 @@ class ProgressPrinter(object):
         if self.max_count > 0:
           percent = self.count * 100.0 / self.max_count
           remaining_secs = (self.max_count - self.count) / items_per_sec
-          print('%s: %.1f%%, ips:%.2f, remaining:%ds' % \
-                (self.title, percent, items_per_sec, remaining_secs),
+          print('%s: %.1f%%, %s:%.2f, remaining:%ds' % \
+                (self.title, percent, self.meter, items_per_sec,
+                 remaining_secs),
                 file=sys.stderr)
         else:
-          print('%s: %.d, ips:%.2f' % (self.title, self.count, items_per_sec))
+          print('%s: %.d, %s:%.2f' % (self.title, self.count, self.meter,
+                                      items_per_sec))
         self.next_print_time = now + self.print_delay
 
 class StoryFileReader(object):
@@ -224,7 +227,8 @@ class StoryReader(object):
 
     try:
       reader = StoryFileReader()
-      progress = ProgressPrinter('StoryFileReader', len(self.files_to_read))
+      progress = ProgressPrinter('StoryFileReader', 'files/sec',
+                                 len(self.files_to_read))
       with concurrent.futures.ProcessPoolExecutor() as executor:
         for future in concurrent.futures.as_completed(executor.submit(reader, fn) for fn in self.files_to_read):
           progress.increment()
@@ -537,7 +541,7 @@ class NPR(object):
   # Extract a subset of the stories, and write them to a single file for
   # analysis.
   def extractMatchingStories(self):
-    progress = ProgressPrinter('Matcher', 0)
+    progress = ProgressPrinter('Matcher', 'stories/sec', 0)
     matching_stories = []
     for story in StoryReader(self, glob.glob('stories/*.xml')):
       progress.increment()
@@ -706,7 +710,8 @@ class NPR(object):
     pos = GenderCounter('positive')
     neg = GenderCounter('negative')
     file_names = glob.glob('stories/*.xml')
-    progress = ProgressPrinter('SentimentAnalyzer', len(file_names))
+    progress = ProgressPrinter('SentimentAnalyzer', 'files/sec',
+                               len(file_names))
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus) as executor:
       futures = [executor.submit(counter, fn) for fn in file_names]
       for future in concurrent.futures.as_completed(futures):
@@ -736,7 +741,8 @@ class NPR(object):
     pos_counter = GenderCounter('positive')
     neg_counter = GenderCounter('negative')
     file_names = glob.glob('stories/*.xml')
-    progress = ProgressPrinter('FileSentimentAnalyzer', len(file_names))
+    progress = ProgressPrinter('FileSentimentAnalyzer', 'files/sec',
+                               len(file_names))
     with concurrent.futures.ProcessPoolExecutor(max_workers=int(num_cpus*3/2)) as executor:
       for future in concurrent.futures.as_completed(executor.submit(analyzer, fn) for fn in file_names):
         progress.increment()
@@ -752,7 +758,7 @@ class NPR(object):
     pos = GenderCounter('positive')
     neg = GenderCounter('negative')
     file_names = glob.glob('stories/*.xml')
-    progress = ProgressPrinter('analyzeWords', len(file_names))
+    progress = ProgressPrinter('analyzeWords', 'files/sec', len(file_names))
     with concurrent.futures.ProcessPoolExecutor(max_workers=int(num_cpus*3/2)) as executor:
       for future in concurrent.futures.as_completed(executor.submit(counter, fn) for fn in file_names):
         progress.increment()
