@@ -444,6 +444,9 @@ class NPR(object):
   tags = {tag.id_:tag for tag in all_tags}
   female_options = FemaleOptions(all_tags, ignore_tag_ids)
   male_options = MaleOptions(all_tags, ignore_tag_ids)
+  gender_tags = set()
+  gender_tags |= female_options.all_tags
+  gender_tags |= male_options.all_tags
 
   def __init__(self, api_key):
     self.api_key_ = api_key
@@ -534,14 +537,11 @@ class NPR(object):
   # Extract a subset of the stories, and write them to a single file for
   # analysis.
   def extractMatchingStories(self):
-    combined_tags = copy.copy(NPR.female_options.all_tags)
-    combined_tags |= NPR.male_options.all_tags
-
     progress = ProgressPrinter('Matcher', 0)
     matching_stories = []
     for story in StoryReader(self, glob.glob('stories/*.xml')):
       progress.increment()
-      if story.hasATag(combined_tags):
+      if story.hasATag(NPR.gender_tags):
         matching_stories.append(story)
 
     print('There are', len(matching_stories), 'matching stories')
@@ -809,13 +809,11 @@ class NPR(object):
     tags = []
     data = []
     targets = []
-    combined_tags = copy.copy(NPR.female_options.all_tags)
-    combined_tags |= NPR.male_options.all_tags
     for story in stories:
       story_text = story.rawText()
       tt = []
       for tag in story.tags_:
-        if tag_counts[tag] >= 15 or tag in combined_tags:
+        if tag_counts[tag] >= 15 or tag in NPR.gender_tags:
           if tag not in tags:
             tags.append(tag)
           tt.append(tag.title_)
