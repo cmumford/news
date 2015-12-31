@@ -838,39 +838,42 @@ class NPR(object):
       counter.increment(female_count, male_count)
     print(counter)
 
-  def classifyStories(self):
-    stories = []
+  @staticmethod
+  def newClassifierPipeline(stories, min_tag_count = 1,
+                            always_include_tags = None):
+    stories_with_text = []
     tag_counts = {}
     # First scan to calculate counts
-    for story in StoryReader(glob.glob('stories/*.xml'), False):
+    for story in stories:
       if not story.hasText():
         continue
-      stories.append(story)
+      stories_with_text.append(story)
       for tag in story.tags_:
         if tag in tag_counts:
           tag_counts[tag] += 1
         else:
           tag_counts[tag] = 1
 
-    print('Will be classifying using the following existing tags:')
-    NPR.printAllTags(stories, NPR.classifier_story_min_count)
-
     # Now gather the data for stories with enough tags.
     tags = []
     data = []
     targets = []
-    progress = ProgressPrinter('StoryText', 'stories/sec', len(stories))
-    for story in stories:
+    progress = ProgressPrinter('StoryText', 'stories/sec', len(stories_with_text))
+    for story in stories_with_text:
       progress.increment()
       tt = []
       for tag in story.tags_:
-        if tag_counts[tag] >= NPR.classifier_story_min_count or tag in NPR.gender_tags:
+        if tag_counts[tag] >= min_tag_count or \
+                (always_include_tags and tag in always_include_tags):
           if tag not in tags:
             tags.append(tag)
           tt.append(tag.title_)
       if len(tt):
         data.append(story.rawText())
         targets.append(tt)
+
+    print('Will be classifying using the following existing tags:')
+    NPR.printTags('Classification Tags', stories_with_text, tags)
 
     print("Transforming targets...")
     lb = MultiLabelBinarizer()
@@ -881,7 +884,19 @@ class NPR(object):
                          ('tfidf', TfidfTransformer()),
                          ('clf', OneVsRestClassifier(LinearSVC(), n_jobs=-1))
                         ])
-    text_clf = text_clf.fit(data, Y)
+    return (text_clf.fit(data, Y), lb)
+
+  @staticmethod
+  def createClassifierPipeline(min_tag_count=1, always_include_tags=None,
+                               apply_auto_tags=False):
+    return NPR.newClassifierPipeline(StoryReader(glob.glob('stories/*.xml'),
+                                                 apply_auto_tags),
+                                     min_tag_count,
+                                     always_include_tags)
+
+  def classifyStories(self):
+    (cl, lb) = NPR.createClassifierPipeline(NPR.classifier_story_min_count,
+                                            NPR.gender_tags)
 
     # Now fit *all* stories
     story_texts = []
@@ -889,7 +904,7 @@ class NPR(object):
       story_texts.append(story.rawText())
 
     print("Predicting stories...")
-    predicted = text_clf.predict(story_texts)
+    predicted = cl.predict(story_texts)
     print("Printing results...")
     all_labels = lb.inverse_transform(predicted)
     missing_gender_count = 0
