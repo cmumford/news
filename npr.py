@@ -214,8 +214,7 @@ class StoryFileReader(object):
 class StoryReader(object):
   sleepSecs = 1
 
-  def __init__(self, npr, file_names, apply_auto_tags=True):
-    self.npr = npr
+  def __init__(self, file_names, apply_auto_tags=True):
     self.files_to_read = file_names
     self.apply_auto_tags = apply_auto_tags
     self.stories = []
@@ -621,7 +620,8 @@ class NPR(object):
       w.writeheader()
       w.writerow(the_dict)
 
-  def printTags(self, title, stories, tags, min_count = 0):
+  @staticmethod
+  def printTags(title, stories, tags, min_count = 0):
     print('%s tags' % title)
     print('=========')
     counts = {}
@@ -640,11 +640,12 @@ class NPR(object):
     print('---------')
     print('Total:%d' % total)
 
-  def printAllTags(self, stories, min_count = 0):
+  @staticmethod
+  def printAllTags(stories, min_count = 0):
     print()
-    self.printTags('Female', stories, NPR.female_options.all_tags, min_count)
+    NPR.printTags('Female', stories, NPR.female_options.all_tags, min_count)
     print()
-    self.printTags('Male', stories, NPR.male_options.all_tags, min_count)
+    NPR.printTags('Male', stories, NPR.male_options.all_tags, min_count)
 
   def analyzeGenderStories(self):
     file_names = glob.glob('stories/*.xml')
@@ -709,7 +710,7 @@ class NPR(object):
     for key in self.male_options.all_res:
       male_counts[key] = 0
 
-    for story in StoryReader(self, glob.glob('stories/*.xml')):
+    for story in StoryReader(glob.glob('stories/*.xml')):
       story_text = story.rawText()
       for reg in self.female_options.all_res:
         female_counts[reg] += len(self.female_options.all_res[reg].findall(story_text))
@@ -823,7 +824,7 @@ class NPR(object):
 
   def countAttribute(self, attr_name):
     counter = GenderCounter(attr_name)
-    for story in StoryReader(self, glob.glob('stories/*.xml')):
+    for story in StoryReader(glob.glob('stories/*.xml')):
       attr = getattr(story, attr_name)
       if not attr:
         continue
@@ -841,7 +842,7 @@ class NPR(object):
     stories = []
     tag_counts = {}
     # First scan to calculate counts
-    for story in StoryReader(self, glob.glob('stories/*.xml'), False):
+    for story in StoryReader(glob.glob('stories/*.xml'), False):
       if not story.hasText():
         continue
       stories.append(story)
@@ -852,7 +853,7 @@ class NPR(object):
           tag_counts[tag] = 1
 
     print('Will be classifying using the following existing tags:')
-    npr.printAllTags(stories, NPR.classifier_story_min_count)
+    NPR.printAllTags(stories, NPR.classifier_story_min_count)
 
     # Now gather the data for stories with enough tags.
     tags = []
