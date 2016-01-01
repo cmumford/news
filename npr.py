@@ -475,7 +475,7 @@ class NPR(object):
   def getUrl(self, params = {}):
     common_params = {'apiKey': self.api_key_}
     params.update(common_params)
-    return NPR.baseUrl + urllib.urlencode(params)
+    return NPR.baseUrl + urllib.parse.urlencode(params)
 
   def downloadData(self):
     params = {'startNum':154534, 'numResults':20}
