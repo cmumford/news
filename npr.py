@@ -698,7 +698,7 @@ class NPR(object):
     print('Have:', len(matching_stories), 'gender stories')
 
     print(GenderStats.csvHeader())
-    for year in range(2010, 2016):
+    for year in range(2011, 2016):
       stories = []
       for story in matching_stories:
         if story.date_.year == year:
