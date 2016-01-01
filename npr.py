@@ -682,7 +682,7 @@ class NPR(object):
 
   def analyzeGenderStories(self):
     file_names = glob.glob('stories/*.xml')
-    progress = ProgressPrinter('Matcher', 'files/sec', len(file_names))
+    progress = ProgressPrinter('Gender Counter', 'files/sec', len(file_names))
     matching_stories = []
     matcher = ReadGenderStories()
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus) as executor:
