@@ -288,7 +288,8 @@ class MaleOptions(GenderOptions):
   def __init__(self, all_tags, ignore_tag_ids):
     super(MaleOptions, self).__init__({
       'adult' : ['mens?', "men's", "man's", "father'?s?", "grandfather'?s?",
-                 'grandpa', 'males?', 'masculism', "men's rights"],
+                 'grandpa', 'males?', 'masculism', "men's rights",
+                 'penis transplant'],
       'youth' : ['sons?', 'boys?'],
       'cancer': ['prostate cancer']}, all_tags, ignore_tag_ids)
 
@@ -297,9 +298,12 @@ class FemaleOptions(GenderOptions):
     super(FemaleOptions, self).__init__({
       'adult' : ['womens?', "women's", "woman's", "mother'?s?",
                  "grandmother'?s?", 'grandma', 'females?', 'feminism',
-                 "women's rights?", 'ovarian transplant'],
+                 "women's rights?", 'ovarian transplant', 'breast',
+                 'breastfeeding', 'breastmilk'],
       'youth' : ['girls?', 'daughters?', '15girls'],
-      'cancer': ['breast cancer']}, all_tags, ignore_tag_ids)
+      'cancer': ['breast cancer', 'mastectomy', 'double mastectomy',
+                 'Pink ribbon breast cancer awareness']},
+      all_tags, ignore_tag_ids)
 
 def loadTags():
   root = ET.parse('tags.xml').getroot()
