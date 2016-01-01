@@ -288,7 +288,7 @@ class MaleOptions(GenderOptions):
     super(MaleOptions, self).__init__({
       'adult' : ['mens?', "men's", "man's", "father'?s?", "grandfather'?s?",
                  'grandpa', 'males?', 'masculism', "men's rights"],
-      'youth' : ['sons?', 'boys?', 'grandpa'],
+      'youth' : ['sons?', 'boys?'],
       'cancer': ['prostate cancer']}, all_tags, ignore_tag_ids)
 
 class FemaleOptions(GenderOptions):
