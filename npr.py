@@ -241,6 +241,7 @@ class StoryReader(object):
           stories = future.result()
           for story in stories:
             story.switchTags()
+          NPR.fixupTags(stories)
           with self.lock:
             self.stories.extend(stories)
     except Exception as e:
@@ -961,6 +962,40 @@ class NPR(object):
     print('Missing gender tags:', missing_gender_count)
     print(missing_counter)
     self.writeStoriesToXml(missed_tags, 'classified_stories.xml')
+
+  @staticmethod
+  def fixupTags(stories):
+    # NPR's tags are fairly messy. This does some very basic
+    fixes = {
+      # Female
+      "#15Girls": ["15girls"],
+      "black women and marriage": ["black women", "Marriage"],
+      "breast cacn": ["breast cacn"],
+      "breast cancer, mastectomy, Samantha Harris": ["breast cancer", "mastectomy"],
+      "daughter": ["daughters"],
+      "girl": ["Girls"],
+      "teenage girls": ["teen girls"],
+      "women in tech, data": ["women in tech"],
+      "women's right": ["women's rights"],
+      "women's world cup soccer": ["women's World Cup"],
+      "breast-feeding": ["breastfeeding"],
+      # Male
+      "Boy Scouts": ["Boy Scouts of America"],
+      "NCAA men basketball": ["NCAA men's basketball"],
+    }
+
+    tags = {}
+    for key in fixes:
+      tags[NPR.tag_titles[key]] = [NPR.tag_titles[t] for t in fixes[key]]
+
+    for story in stories:
+      new_tags = set()
+      for tag in story.tags_:
+        if tag in tags:
+          new_tags |= set(tags[tag])
+        else:
+          new_tags.add(tag)
+      story_tags_ = new_tags
 
 if __name__ == '__main__':
   try:
