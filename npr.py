@@ -315,7 +315,7 @@ class NamedCounter(object):
     self.name = name
     self.count = 0
 
-  def increment(self, amount):
+  def increment(self, amount=1):
     self.count += amount
 
   def __str__(self):
@@ -646,6 +646,33 @@ class NPR(object):
     NPR.printTags('Female', stories, NPR.female_options.all_tags, min_count)
     print()
     NPR.printTags('Male', stories, NPR.male_options.all_tags, min_count)
+
+  def analyzeGenderTitles(self):
+    file_names = glob.glob('stories/*.xml')
+    progress = ProgressPrinter('Titles', 'files/sec', len(file_names))
+    matcher = ReadGenderStories()
+    counts = {
+      2011: GenderCounter('2011'),
+      2012: GenderCounter('2012'),
+      2013: GenderCounter('2013'),
+      2014: GenderCounter('2014'),
+      2015: GenderCounter('2015'),
+    }
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus) as executor:
+      futures = [executor.submit(matcher, fn) for fn in file_names]
+      for future in concurrent.futures.as_completed(futures):
+        progress.increment()
+        if future.exception() is not None:
+          raise future.exception()
+        for story in future.result():
+          if NPR.matchRegExes(story.title_, NPR.female_options.all_res):
+            counts[story.date_.year].female.increment()
+          if NPR.matchRegExes(story.title_, NPR.male_options.all_res):
+            counts[story.date_.year].male.increment()
+
+    print(GenderStats.csvHeader())
+    for year in range(2011, 2016):
+      print(counts[year])
 
   def analyzeGenderStories(self):
     file_names = glob.glob('stories/*.xml')
