@@ -632,7 +632,8 @@ class NPR(object):
         else:
           counts[tag] = 1
     total = 0
-    for tag in sorted(tags, key=attrgetter('title_')):
+    get_key = attrgetter('title_')
+    for tag in sorted(tags, key = lambda mbr: get_key(mbr).lower()):
       count = counts[tag] if tag in counts else 0
       if count >= min_count:
         total += count
