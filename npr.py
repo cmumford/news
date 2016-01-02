@@ -473,6 +473,7 @@ class NPR(object):
   gender_tags |= female_options.all_tags
   gender_tags |= male_options.all_tags
   classifier_story_min_count = 17
+  classified_stories = None
 
   def __init__(self, api_key):
     self.api_key_ = api_key
@@ -524,8 +525,9 @@ class NPR(object):
   def loadStoriesFromFile(file_name, apply_missing_tags=True):
     auto_tagged_stories = None
     if apply_missing_tags:
-      stories = NPR.loadStoriesFromFile('classified_stories.xml', False)
-      auto_tagged_stories = {s.id_:s for s in stories}
+      if not NPR.classified_stories:
+        NPR.classified_stories = NPR.loadStoriesFromFile('classified_stories.xml', False)
+      auto_tagged_stories = {s.id_:s for s in NPR.classified_stories}
     stories = []
     root = ET.parse(file_name).getroot()
     for xml_story in root.findall('list/story'):
