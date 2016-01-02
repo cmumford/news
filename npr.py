@@ -591,6 +591,13 @@ class NPR(object):
     return False
 
   @staticmethod
+  def one_not_in_another(container_a, container_b):
+    for c in container_a:
+      if c not in container_b:
+        return True
+    return False
+
+  @staticmethod
   def matchRegExes(sentence, regexes, count_all=False):
     count = 0
     if type(sentence).__name__ == 'str':
@@ -942,32 +949,24 @@ class NPR(object):
     predicted = cl.predict(story_texts)
     print("Printing results...")
     all_labels = lb.inverse_transform(predicted)
-    missing_gender_count = 0
-    missing_counter = GenderCounter('Missing gender tags')
-    missed_tags = []
+    adjusted_tags = []
     with open('categorized.txt', 'w') as f:
       for story, categories in zip(stories, all_labels):
         print('%s => %s' % (story.title_, ','.join(categories) ), file=f)
         if len(categories):
           cl_tags = set([NPR.tag_titles[c] for c in categories])
-          if NPR.one_in_another(cl_tags, NPR.gender_tags) \
-             and not NPR.one_in_another(story.tags_, NPR.gender_tags):
-            print('Title:', story.title_)
-            print('  url:', story.url_)
-            print('  npr:', ', '.join([t.title_ for t in story.tags_]))
-            print('  CLS:', ', '.join(categories))
-            print()
-            missing_gender_count += 1
-            missing_counter.increment(
-                int(NPR.one_in_another(cl_tags, NPR.female_options.all_tags)),
-                int(NPR.one_in_another(cl_tags, NPR.male_options.all_tags)))
+          if NPR.one_not_in_another(cl_tags, story.tags_):
+            if False:
+              print('Title:', story.title_)
+              print('  url:', story.url_)
+              print('  npr:', ', '.join([t.title_ for t in story.tags_]))
+              print('  CLS:', ', '.join(categories))
+              print()
             story.tags_ = story.tags_
             story.tags_ |= cl_tags
-            missed_tags.append(story)
+            adjusted_tags.append(story)
 
-    print('Missing gender tags:', missing_gender_count)
-    print(missing_counter)
-    self.writeStoriesToXml(missed_tags, 'classified_stories.xml')
+    self.writeStoriesToXml(adjusted_tags, 'classified_stories.xml')
 
   @staticmethod
   def fixupTags(stories):
