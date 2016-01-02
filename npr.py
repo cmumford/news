@@ -6,6 +6,7 @@ import copy
 import csv
 import datetime
 import dateutil.parser
+import doctest
 import glob
 import itertools
 import json
@@ -45,6 +46,7 @@ num_cpus = multiprocessing.cpu_count()
 keep_running = True
 
 def handler(signum, frame):
+  """The signal handling function. Just clears keep_running"""
   print('Signal handler called with signal', signum)
   global keep_running
   if signum == signal.SIGINT:
@@ -62,6 +64,7 @@ class Topics(object):
 
 class Tag(object):
   def __init__(self, id, num, title, additionalInfo):
+    """Tag constructor"""
     self.id_ = id
     self.num_ = num
     self.title_ = title
@@ -71,6 +74,7 @@ class Tag(object):
     return 'id:%d, num:%d, "%s"' % (self.id_, self.num_, self.title_)
 
 class Story(object):
+  """A single story read from the NPR story corpus."""
   copyright_re = re.compile(r'\[Copyright \d+ NPR\]')
   exclude = set(string.punctuation)
   exclude.add(u'\u2013') # endash
@@ -87,29 +91,44 @@ class Story(object):
     self.url_ = ''
 
   def text(self):
+    """Return all story paragraphs concatenated as a single string."""
     return ' '.join(self.text_)
 
   def hasText(self):
+    """Does this story have any text? Some (like podcasts) do not."""
     return len(self.text_) > 0
 
   @staticmethod
   def isCopyrightSentence(sentence):
+    """Is the string sentence passed in a copyright sentence?"""
     return Story.copyright_re.match(sentence) != None
 
   @staticmethod
-  def stripPunctuation(word):
-    return word.strip(Story.excludeStr)
+  def stripPunctuation(text):
+    """Remove all punctuation from the supplied text string.
+    >>> Story.stripPunctuation("Fred")
+    'Fred'
+    >>> Story.stripPunctuation(r'"Fred"')
+    'Fred'
+    >>> Story.stripPunctuation(r"Fred's")
+    "Fred's"
+    >>> Story.stripPunctuation("\\"Fred's\\"")
+    "Fred's"
+    """
+    return text.strip(Story.excludeStr)
 
   @staticmethod
   def extractWords(sentence):
-    words = []
-    for word in sentence.split():
-      word.strip()
-      words.append(Story.stripPunctuation(word))
-    return words
+    """Extract an array of words in a sentence
+    >>> Story.extractWords('Hello there man')
+    ['Hello', 'there', 'man']
+    >>> Story.extractWords('Hello  there man.')
+    ['Hello', 'there', 'man']
+    """
+    return word_tokenize(Story.stripPunctuation(sentence))
 
-  # Strip out punctuation, and return all story text suitable for analysis.
   def rawText(self):
+    """Strip out punctuation, and return all story text suitable for analysis."""
     words = []
     for para in self.text_:
       newSentence = True
@@ -125,11 +144,12 @@ class Story(object):
     text = ' '.join(words)
     return re.sub(Story.copyright_re, '', text)
 
-  # Switch to the "local" tags of the same as the one in this story.
   def switchTags(self):
+    """Switch to the "local" tags of the same as the one in this story."""
     self.tags_ = set([NPR.tags[t.id_] for t in self.tags_])
 
   def hasATag(self, tags):
+    """Does the story have at least one of any of |tags|?"""
     for tag in tags:
       if tag in self.tags_:
         return True
@@ -1003,6 +1023,7 @@ class NPR(object):
       story_tags_ = new_tags
 
 if __name__ == '__main__':
+  doctest.testmod()
   try:
     api_key = open('key.txt').read().strip()
     npr = NPR(api_key)
