@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import codecs
+import collections
 import concurrent.futures
 import copy
 import csv
@@ -13,13 +14,17 @@ import json
 import multiprocessing
 import nltk.data
 import nltk.classify.util
+from nltk import word_tokenize
 from nltk.classify import NaiveBayesClassifier
 from nltk.corpus import movie_reviews
 from nltk.corpus import stopwords
 import nltk.data
+from nltk.stem import PorterStemmer
 from operator import attrgetter
+from pprint import pprint
 import re
 import signal
+from sklearn.cluster import KMeans
 from sklearn.cross_validation import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
@@ -494,6 +499,7 @@ class NPR(object):
   gender_tags |= male_options.all_tags
   classifier_story_min_count = 17
   classified_stories = None
+  stemmer = PorterStemmer()
 
   def __init__(self, api_key):
     self.api_key_ = api_key
@@ -901,6 +907,55 @@ class NPR(object):
     print(counter)
 
   @staticmethod
+  def textTokenizer(text, stem=True):
+    """ Tokenize text and stem words removing punctuation """
+    text = Story.stripPunctuation(text)
+    tokens = word_tokenize(text)
+    if stem:
+      tokens = [NPR.stemmer.stem(t) for t in tokens]
+
+    return tokens
+
+  @staticmethod
+  def newClusteringPipeline(stories, num_clusters=20):
+    texts = []
+    classify_stories = []
+    progress = ProgressPrinter('Clustering', 'stories/sec', 0)
+    count = 0
+    for story in stories:
+      if not story.hasText():
+        continue
+      count += 1
+      if count > 36000:
+        break
+      t = story.text()
+      assert t
+      texts.append(t)
+      classify_stories.append(story)
+    print('There are', len(classify_stories), 'stories to classify')
+    assert len(classify_stories)
+
+    vectorizer = TfidfVectorizer(tokenizer=NPR.textTokenizer,
+                                 stop_words=stopwords.words('english'),
+                                 max_df=0.5,
+                                 min_df=0.1,
+                                 lowercase=True)
+
+    print('fitting to text', file=sys.stderr)
+    tfidf_model = vectorizer.fit_transform(texts)
+    km_model = KMeans(n_clusters=num_clusters, n_jobs=-1)
+    km_model.fit(tfidf_model)
+
+    clustering = collections.defaultdict(list)
+
+    for idx, label in enumerate(km_model.labels_):
+      story = classify_stories[idx]
+      clustering[label].append((story.title_, ', '.join([t.title_ for t in story.tags_])))
+
+    print('Done clustering')
+    return clustering
+
+  @staticmethod
   def newClassifierPipeline(stories, min_tag_count = 1,
                             always_include_tags = None):
     stories_with_text = []
@@ -920,7 +975,7 @@ class NPR(object):
     tags = []
     data = []
     targets = []
-    progress = ProgressPrinter('StoryText', 'stories/sec', len(stories_with_text))
+    progress = ProgressPrinter('Classifier', 'stories/sec', len(stories_with_text))
     for story in stories_with_text:
       progress.increment()
       tt = []
